@@ -2,12 +2,16 @@
 <html lang="it">
 <head><script>
 (function(){
-  // Storage sync
+  // Store original setItem to avoid recursive loop
   var _origSet = Storage.prototype.setItem;
+  
+  // Override setItem to sync to parent
   Storage.prototype.setItem = function(key, value){
     _origSet.call(this, key, value);
     try{ window.parent.postMessage({type:'SYNC', key:key, value:value}, '*'); }catch(e){}
   };
+
+  // Receive data from parent (use original to avoid loop)
   window.addEventListener('message', function(e){
     if(e.data && e.data.type === 'LOAD_KEY'){
       try{ _origSet.call(localStorage, e.data.key, e.data.value); }catch(ex){}
@@ -382,12 +386,12 @@ function makeTitleBox(text, badge, bg, col, why, wrapId){
     <div class="why">${esc(why)}</div>`;
 }
 
-function fbCopy(txt,ok){try{window.parent.postMessage({type:'COPY',text:txt},'*');}catch(e){}if(ok)ok();}catch(e){}document.body.removeChild(ta);}
+function fbCopy(txt,cb){var ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');if(cb)cb();}catch(e){}document.body.removeChild(ta);}
 
 function copyT(id,txt){
   var b=document.getElementById(id);
   var ok=function(){b.textContent='✅ Copiato!';b.classList.add('ok');setTimeout(function(){b.textContent='📋 Copia titolo';b.classList.remove('ok');},1800);};
-  if(navigator.clipboard&&navigator.clipboard.writeText) window.parent.postMessage({type:'COPY',text:txt},'*');ok();
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok).catch(function(){fbCopy(txt,ok);});
   else fbCopy(txt,ok);
 }
 

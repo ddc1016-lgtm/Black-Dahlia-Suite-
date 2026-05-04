@@ -163,22 +163,22 @@ iframe.apf.active{display:block}
       <div class="slbl">App</div>
       <div id="navItems">
         <!-- Default apps -->
-        <button class="ni" data-app="blackdahlia" data-src="blackdahlia.html" onclick="switchApp('blackdahlia','Black Dahlia')">
+        <button class="ni" data-app="blackdahlia" data-src="blackdahlia.html">
           <span class="ic">📝</span><span><span class="nn">Black Dahlia</span><span class="nd">Descrizioni prodotti</span></span>
         </button>
-        <button class="ni" data-app="ebay_title" data-src="ebay_title.html" onclick="switchApp('ebay_title','eBay Title')">
+        <button class="ni" data-app="ebay_title" data-src="ebay_title.html">
           <span class="ic">🏷️</span><span><span class="nn">eBay Title</span><span class="nd">Titoli ISBN per eBay</span></span>
         </button>
-        <button class="ni" data-app="ebay_isbn" data-src="ebay_isbn.html" onclick="switchApp('ebay_isbn','eBay ISBN')">
+        <button class="ni" data-app="ebay_isbn" data-src="ebay_isbn.html">
           <span class="ic">📦</span><span><span class="nn">eBay ISBN</span><span class="nd">Gestione ISBN eBay</span></span>
         </button>
-        <button class="ni" data-app="vinted_isbn" data-src="vinted_isbn.html" onclick="switchApp('vinted_isbn','Vinted ISBN')">
+        <button class="ni" data-app="vinted_isbn" data-src="vinted_isbn.html">
           <span class="ic">👗</span><span><span class="nn">Vinted ISBN</span><span class="nd">Gestione ISBN Vinted</span></span>
         </button>
-        <button class="ni" data-app="import_pipeline" data-src="import_pipeline.html" onclick="switchApp('import_pipeline','Import Pipeline')">
+        <button class="ni" data-app="import_pipeline" data-src="import_pipeline.html">
           <span class="ic">🔄</span><span><span class="nn">Import Pipeline</span><span class="nd">Pipeline importazione</span></span>
         </button>
-        <button class="ni" data-app="isbn_titoli" data-src="isbn_titoli.html" onclick="switchApp('isbn_titoli','ISBN → Titoli')">
+        <button class="ni" data-app="isbn_titoli" data-src="isbn_titoli.html">
           <span class="ic">📚</span><span><span class="nn">ISBN → Titoli</span><span class="nd">Lookup titoli libri</span></span>
         </button>
       </div>
@@ -195,12 +195,12 @@ iframe.apf.active{display:block}
     <div id="overlay"></div>
     <div id="content">
       <!-- Default iframes -->
-      <iframe class="apf" id="f_blackdahlia" allow="clipboard-write"     src="blackdahlia.html"     allow="clipboard-write"></iframe>
-      <iframe class="apf" id="f_ebay_title" allow="clipboard-write"      src="ebay_title.html"      allow="clipboard-write"></iframe>
-      <iframe class="apf" id="f_ebay_isbn" allow="clipboard-write"       src="ebay_isbn.html"       allow="clipboard-write"></iframe>
-      <iframe class="apf" id="f_vinted_isbn" allow="clipboard-write"     src="vinted_isbn.html"     allow="clipboard-write"></iframe>
-      <iframe class="apf" id="f_import_pipeline" allow="clipboard-write" src="import_pipeline.html" allow="clipboard-write"></iframe>
-      <iframe class="apf" id="f_isbn_titoli" allow="clipboard-write"     src="isbn_titoli.html"     allow="clipboard-write"></iframe>
+      <iframe class="apf" id="f_blackdahlia"     src="blackdahlia.html"></iframe>
+      <iframe class="apf" id="f_ebay_title"      src="ebay_title.html"></iframe>
+      <iframe class="apf" id="f_ebay_isbn"       src="ebay_isbn.html"></iframe>
+      <iframe class="apf" id="f_vinted_isbn"     src="vinted_isbn.html"></iframe>
+      <iframe class="apf" id="f_import_pipeline" src="import_pipeline.html"></iframe>
+      <iframe class="apf" id="f_isbn_titoli"     src="isbn_titoli.html"></iframe>
 
       <!-- Gestione panel -->
       <div id="gestPanel">
@@ -211,9 +211,7 @@ iframe.apf.active{display:block}
         <div class="gp-section">
           <div class="gp-slbl">Membri del team</div>
           <div style="background:#111;border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px">
-            <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">
-              Aggiungi persone che possono vedere e modificare i tuoi stessi dati.
-            </div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Aggiungi persone che possono vedere e modificare i tuoi stessi dati.</div>
             <div id="memberList" style="margin-bottom:10px"></div>
             <div style="display:flex;gap:8px">
               <input class="gp-input" id="memberEmail" placeholder="email@gmail.com" style="flex:1">
@@ -309,6 +307,7 @@ window.auth = auth; window.db = db;
 
 // ── State ──
 let user = null, syncTimer = null, curApp = null;
+let ownerUid = null;
 let customApps = {}; // loaded from Firestore
 let hiddenApps = {}; // default apps hidden by user
 let selectedFileContent = null, selectedFileName = null, selectedEmoji = '🆕';
@@ -349,7 +348,6 @@ function switchApp(appId, label) {
     frame = document.createElement('iframe');
     frame.className = 'apf';
     frame.id = 'f_'+appId;
-    frame.allow = 'clipboard-write';
     document.getElementById('content').appendChild(frame);
   }
 
@@ -384,7 +382,7 @@ function openGest(){
   renderAppList();
   renderEmojiGrid();
   populateUpdateSelect();
-  loadMembers();
+  if(user && ownerUid===user.uid) loadMembers();
 }
 
 function renderAppList(){
@@ -534,7 +532,7 @@ async function saveNewApp(){
     // Extra chunks
     for(let i=1;i<chunks.length;i++) appData['html'+i]=chunks[i];
 
-    await getOwnerRef().collection('apps').doc(appId).set(appData);
+    await db.collection('users').doc(user.uid).collection('apps').doc(appId).set(appData);
 
     // Update local state
     customApps[appId] = { name, icon, desc, html: selectedFileContent };
@@ -603,7 +601,7 @@ async function doDelete(){
     if(mode === 'default'){
       // Hide default app: save to Firestore and remove from sidebar
       hiddenApps[appId] = true;
-      await getOwnerRef().collection('hidden_apps').doc(appId).set({hidden:true});
+      await db.collection('users').doc(user.uid).collection('hidden_apps').doc(appId).set({hidden:true});
       const nav = document.querySelector(`.ni[data-app="${appId}"]`);
       if(nav) nav.style.display='none';
       // If currently viewing this app, go back to gestione
@@ -611,14 +609,14 @@ async function doDelete(){
       toast('App nascosta','ok');
     } else if(mode === 'override'){
       // Remove custom version, revert to default
-      await getOwnerRef().collection('apps').doc(appId).delete();
+      await db.collection('users').doc(user.uid).collection('apps').doc(appId).delete();
       delete customApps[appId];
       const fr=document.getElementById('f_'+appId);
       if(fr){ fr.dataset.loaded=''; fr.src=fr.src; }
       toast('Versione personalizzata rimossa','ok');
     } else {
       // Delete custom app entirely
-      await getOwnerRef().collection('apps').doc(appId).delete();
+      await db.collection('users').doc(user.uid).collection('apps').doc(appId).delete();
       delete customApps[appId];
       const nav=document.querySelector(`.ni[data-app="${appId}"]`);
       if(nav) nav.remove();
@@ -635,91 +633,12 @@ async function doDelete(){
 
 async function restoreDefault(appId, name){
   try{
-    await getOwnerRef().collection('hidden_apps').doc(appId).delete();
+    await db.collection('users').doc(user.uid).collection('hidden_apps').doc(appId).delete();
     delete hiddenApps[appId];
     const nav = document.querySelector(`.ni[data-app="${appId}"]`);
     if(nav) nav.style.display='';
     toast(`"${name}" ripristinata`,'ok');
     renderAppList();
-  }catch(e){
-    toast('Errore: '+e.message,'err',5000);
-  }
-}
-
-// ── Team management ──
-let ownerUid = null; // the data owner's UID (could be another user if we're a member)
-
-async function resolveOwner(){
-  if(!user) return null;
-  try{
-    // Check if this user is a member of someone else's team
-    const memberSnap = await db.collection('team_members')
-      .where('email','==', user.email).limit(1).get();
-    if(!memberSnap.empty){
-      ownerUid = memberSnap.docs[0].data().ownerUid;
-    } else {
-      ownerUid = user.uid;
-    }
-  }catch(e){
-    ownerUid = user.uid;
-    console.error('resolveOwner', e);
-  }
-  return ownerUid;
-}
-
-function getOwnerRef(){
-  return db.collection('users').doc(ownerUid || user.uid);
-}
-
-async function loadMembers(){
-  try{
-    const snap = await db.collection('team_members')
-      .where('ownerUid','==', user.uid).get();
-    const list = document.getElementById('memberList');
-    if(!list) return;
-    if(snap.empty){
-      list.innerHTML = '<div style="font-size:11px;color:var(--muted)">Nessun membro aggiunto</div>';
-      return;
-    }
-    list.innerHTML = snap.docs.map(doc => {
-      const d = doc.data();
-      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
-        <span style="flex:1;font-size:12px;color:var(--text)">${d.email}</span>
-        <button class="ac-btn danger" onclick="removeMember('${doc.id}','${d.email}')">✕</button>
-      </div>`;
-    }).join('');
-  }catch(e){ console.error('loadMembers',e); }
-}
-
-async function addMember(){
-  const email = document.getElementById('memberEmail').value.trim().toLowerCase();
-  if(!email || !email.includes('@')){ toast('Inserisci un email valida','err'); return; }
-  if(!user){ toast('Devi essere loggato','err'); return; }
-  try{
-    // Check not already added
-    const existing = await db.collection('team_members')
-      .where('ownerUid','==',user.uid).where('email','==',email).get();
-    if(!existing.empty){ toast('Email già aggiunta','err'); return; }
-    
-    await db.collection('team_members').add({
-      ownerUid: user.uid,
-      ownerEmail: user.email,
-      email: email,
-      addedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    document.getElementById('memberEmail').value = '';
-    toast(`✓ ${email} aggiunta al team`,'ok',3000);
-    loadMembers();
-  }catch(e){
-    toast('Errore: '+e.message,'err',5000);
-  }
-}
-
-async function removeMember(docId, email){
-  try{
-    await db.collection('team_members').doc(docId).delete();
-    toast(`${email} rimossa`,'ok');
-    loadMembers();
   }catch(e){
     toast('Errore: '+e.message,'err',5000);
   }
@@ -799,14 +718,14 @@ async function loadCustomApps(){
   if(!user) return;
   try{
     // Load hidden default apps
-    const hiddenSnap = await getOwnerRef().collection('hidden_apps').get();
+    const hiddenSnap = await db.collection('users').doc(user.uid).collection('hidden_apps').get();
     hiddenSnap.forEach(doc=>{
       hiddenApps[doc.id] = true;
       const nav = document.querySelector(`.ni[data-app="${doc.id}"]`);
       if(nav) nav.style.display='none';
     });
     // Load custom apps
-    const snap = await getOwnerRef().collection('apps').get();
+    const snap = await db.collection('users').doc(user.uid).collection('apps').get();
     snap.forEach(doc=>{
       const d = doc.data();
       // Reassemble chunks
@@ -859,44 +778,56 @@ function pushCloudDataToFrame(frame){
   });
 }
 
-window.addEventListener('message', function(e){
-  if(!e.data) return;
-
-  // Storage sync
-  if(e.data.type === 'SYNC'){
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(function(){ saveKey(e.data.key, e.data.value); }, 800);
-  }
-
-  // Clipboard proxy — iframe asks parent to copy
-  if(e.data.type === 'COPY'){
-    var text = e.data.text || '';
-    var id   = e.data.id;
-    var src  = e.source;
-    function sendDone(ok){
-      try{ src.postMessage({type:'COPY_DONE', id:id, ok:ok}, '*'); }catch(ex){}
-    }
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text)
-        .then(function(){ sendDone(true); })
-        .catch(function(){ fallbackCopy(text, sendDone); });
-    } else {
-      fallbackCopy(text, sendDone);
-    }
-  }
+window.addEventListener('message', e=>{
+  if(!e.data||e.data.type!=='SYNC') return;
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(()=>saveKey(e.data.key,e.data.value),800);
 });
 
-function fallbackCopy(text, cb){
+// ── Team functions ──
+async function resolveOwner(){
+  if(!user) return;
   try{
-    var ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
-    document.body.appendChild(ta);
-    ta.focus(); ta.select();
-    var ok = document.execCommand('copy');
-    document.body.removeChild(ta);
-    if(cb) cb(ok);
-  }catch(e){ if(cb) cb(false); }
+    const snap = await db.collection('team_members').where('email','==',user.email).limit(1).get();
+    ownerUid = snap.empty ? user.uid : snap.docs[0].data().ownerUid;
+  }catch(e){ ownerUid = user.uid; }
+}
+
+function getOwnerRef(){ return db.collection('users').doc(ownerUid||user.uid); }
+
+async function loadMembers(){
+  try{
+    const snap = await db.collection('team_members').where('ownerUid','==',user.uid).get();
+    const list = document.getElementById('memberList');
+    if(!list) return;
+    if(snap.empty){ list.innerHTML='<div style="font-size:11px;color:var(--muted)">Nessun membro aggiunto</div>'; return; }
+    list.innerHTML = snap.docs.map(doc=>{
+      const d=doc.data();
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="flex:1;font-size:12px;color:var(--text)">${d.email}</span>
+        <button class="ac-btn danger" onclick="removeMember('${doc.id}','${d.email}')">✕</button>
+      </div>`;
+    }).join('');
+  }catch(e){ console.error(e); }
+}
+
+async function addMember(){
+  const email = document.getElementById('memberEmail').value.trim().toLowerCase();
+  if(!email||!email.includes('@')){ toast('Inserisci un email valida','err'); return; }
+  try{
+    await db.collection('team_members').add({ownerUid:user.uid, ownerEmail:user.email, email:email, addedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    document.getElementById('memberEmail').value='';
+    toast('✓ '+email+' aggiunta','ok',3000);
+    loadMembers();
+  }catch(e){ toast('Errore: '+e.message,'err',5000); }
+}
+
+async function removeMember(docId, email){
+  try{
+    await db.collection('team_members').doc(docId).delete();
+    toast(email+' rimossa','ok');
+    loadMembers();
+  }catch(e){ toast('Errore: '+e.message,'err',5000); }
 }
 
 // ── Auth ──
@@ -922,9 +853,6 @@ auth.onAuthStateChanged(async u=>{
     }
     toggleSidebar(true);
     await resolveOwner();
-    if(ownerUid !== user.uid){
-      toast('👥 Accesso team di '+( await db.collection('users').doc(ownerUid).get().then(d=>d.data()&&d.data().email||ownerUid).catch(()=>ownerUid)),'ok',3000);
-    }
     await loadCustomApps();
     switchApp('blackdahlia','📝 Black Dahlia');
     await pullCloud();
