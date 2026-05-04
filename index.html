@@ -209,18 +209,6 @@ iframe.apf.active{display:block}
 
         <!-- App esistenti -->
         <div class="gp-section">
-          <div class="gp-slbl">Membri del team</div>
-          <div style="background:#111;border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px">
-            <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Aggiungi persone che possono vedere e modificare i tuoi stessi dati.</div>
-            <div id="memberList" style="margin-bottom:10px"></div>
-            <div style="display:flex;gap:8px">
-              <input class="gp-input" id="memberEmail" placeholder="email@gmail.com" style="flex:1">
-              <button class="ac-btn primary" onclick="addMember()" style="white-space:nowrap;padding:8px 12px">+ Aggiungi</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="gp-section">
           <div class="gp-slbl">Sincronizzazione dati</div>
           <div style="background:#111;border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px">
             <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">
@@ -306,8 +294,7 @@ const db   = firebase.firestore();
 window.auth = auth; window.db = db;
 
 // ── State ──
-let user = null, syncTimer = null, curApp = null;
-let ownerUid = null;
+let user = null, syncTimer = null, curApp = null, ownerUid = null;
 let customApps = {}; // loaded from Firestore
 let hiddenApps = {}; // default apps hidden by user
 let selectedFileContent = null, selectedFileName = null, selectedEmoji = '🆕';
@@ -382,7 +369,6 @@ function openGest(){
   renderAppList();
   renderEmojiGrid();
   populateUpdateSelect();
-  if(user && ownerUid===user.uid) loadMembers();
 }
 
 function renderAppList(){
@@ -659,7 +645,7 @@ async function uploadAllToCloud(){
     keys.forEach(function(key){
       const value = localStorage.getItem(key);
       if(value){
-        const docRef = getOwnerRef().collection('storage').doc(key.replace(/[^a-zA-Z0-9_-]/g,'_'));
+        const docRef = db.collection('users').doc(ownerUid||user.uid).collection('storage').doc(key.replace(/[^a-zA-Z0-9_-]/g,'_'));
         batch.set(docRef, {key:key, value:value, updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
         count++;
       }
@@ -674,7 +660,7 @@ async function uploadAllToCloud(){
       const value = localStorage.getItem(key);
       if(value){
         try{
-          await getOwnerRef().collection('storage')
+          await db.collection('users').doc(ownerUid||user.uid).collection('storage')
             .doc(key.replace(/[^a-zA-Z0-9_-]/g,'_'))
             .set({key,value,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
           count++;
@@ -692,7 +678,7 @@ async function downloadAllFromCloud(){
   const btn = event.target;
   btn.disabled=true; btn.textContent='Download...';
   try{
-    const snap = await getOwnerRef().collection('storage').get();
+    const snap = await db.collection('users').doc(ownerUid||user.uid).collection('storage').get();
     let count=0;
     snap.forEach(function(doc){
       const d=doc.data();
@@ -743,7 +729,7 @@ function encKey(k){ return k.replace(/[^a-zA-Z0-9_-]/g,'_'); }
 async function saveKey(key, value){
   if(!user) return;
   try{
-    await getOwnerRef().collection('storage').doc(encKey(key))
+    await db.collection('users').doc(ownerUid||user.uid).collection('storage').doc(encKey(key))
       .set({key,value,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     document.getElementById('syncBadge').textContent='✓ sync';
   }catch(e){ console.error(e); }
@@ -752,7 +738,7 @@ async function saveKey(key, value){
 async function pullCloud(){
   if(!user) return;
   try{
-    const snap = await getOwnerRef().collection('storage').get();
+    const snap = await db.collection('users').doc(ownerUid||user.uid).collection('storage').get();
     const data={};
     snap.forEach(doc=>{const d=doc.data();if(d.key)data[d.key]=d.value;});
     document.querySelectorAll('.apf').forEach(f=>pushDataToFrame(f,data));
@@ -771,7 +757,7 @@ function pushDataToFrame(frame, data){
 
 function pushCloudDataToFrame(frame){
   if(!user) return;
-  getOwnerRef().collection('storage').get().then(snap=>{
+  db.collection('users').doc(ownerUid||user.uid).collection('storage').get().then(snap=>{
     const data={};
     snap.forEach(doc=>{const d=doc.data();if(d.key)data[d.key]=d.value;});
     pushDataToFrame(frame,data);
@@ -783,52 +769,6 @@ window.addEventListener('message', e=>{
   clearTimeout(syncTimer);
   syncTimer=setTimeout(()=>saveKey(e.data.key,e.data.value),800);
 });
-
-// ── Team functions ──
-async function resolveOwner(){
-  if(!user) return;
-  try{
-    const snap = await db.collection('team_members').where('email','==',user.email).limit(1).get();
-    ownerUid = snap.empty ? user.uid : snap.docs[0].data().ownerUid;
-  }catch(e){ ownerUid = user.uid; }
-}
-
-function getOwnerRef(){ return db.collection('users').doc(ownerUid||user.uid); }
-
-async function loadMembers(){
-  try{
-    const snap = await db.collection('team_members').where('ownerUid','==',user.uid).get();
-    const list = document.getElementById('memberList');
-    if(!list) return;
-    if(snap.empty){ list.innerHTML='<div style="font-size:11px;color:var(--muted)">Nessun membro aggiunto</div>'; return; }
-    list.innerHTML = snap.docs.map(doc=>{
-      const d=doc.data();
-      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
-        <span style="flex:1;font-size:12px;color:var(--text)">${d.email}</span>
-        <button class="ac-btn danger" onclick="removeMember('${doc.id}','${d.email}')">✕</button>
-      </div>`;
-    }).join('');
-  }catch(e){ console.error(e); }
-}
-
-async function addMember(){
-  const email = document.getElementById('memberEmail').value.trim().toLowerCase();
-  if(!email||!email.includes('@')){ toast('Inserisci un email valida','err'); return; }
-  try{
-    await db.collection('team_members').add({ownerUid:user.uid, ownerEmail:user.email, email:email, addedAt:firebase.firestore.FieldValue.serverTimestamp()});
-    document.getElementById('memberEmail').value='';
-    toast('✓ '+email+' aggiunta','ok',3000);
-    loadMembers();
-  }catch(e){ toast('Errore: '+e.message,'err',5000); }
-}
-
-async function removeMember(docId, email){
-  try{
-    await db.collection('team_members').doc(docId).delete();
-    toast(email+' rimossa','ok');
-    loadMembers();
-  }catch(e){ toast('Errore: '+e.message,'err',5000); }
-}
 
 // ── Auth ──
 // doLogin defined above in early script
@@ -851,8 +791,13 @@ auth.onAuthStateChanged(async u=>{
       const av=document.getElementById('userAvatar');
       av.src=u.photoURL; av.style.display='block';
     }
+    // Resolve team ownership
+    try{
+      const ms = await db.collection('team_members').where('email','==',u.email).limit(1).get();
+      ownerUid = ms.empty ? u.uid : ms.docs[0].data().ownerUid;
+    }catch(e){ ownerUid = u.uid; }
+    
     toggleSidebar(true);
-    await resolveOwner();
     await loadCustomApps();
     switchApp('blackdahlia','📝 Black Dahlia');
     await pullCloud();
