@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="it">
+<head><script>
+(function(){
+  // Store original setItem to avoid recursive loop
+  var _origSet = Storage.prototype.setItem;
+  
+  // Override setItem to sync to parent
+  Storage.prototype.setItem = function(key, value){
+    _origSet.call(this, key, value);
+    try{ window.parent.postMessage({type:'SYNC', key:key, value:value}, '*'); }catch(e){}
+  };
+
+  // Receive data from parent (use original to avoid loop)
+  window.addEventListener('message', function(e){
+    if(e.data && e.data.type === 'LOAD_KEY'){
+      try{ _origSet.call(localStorage, e.data.key, e.data.value); }catch(ex){}
+    }
+  });
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Black Dahlia Real · Descrizioni</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0a;color:#f0e6c8;font-family:Georgia,serif;min-height:100vh;padding-bottom:80px}
+header{background:linear-gradient(160deg,#0f0c00,#0a0a0a 60%,#0c0800);border-bottom:1px solid #1e1800;padding:20px 18px 14px;text-align:center}
+header .tag{font-size:10px;color:#c9a84c;letter-spacing:4px;text-transform:uppercase;margin-bottom:5px}
+header h1{font-size:22px;font-weight:900}
+header h1 span{color:#c9a84c}
+header p{margin-top:5px;color:#555;font-size:12px}
+.wrap{padding:14px}
+.card{background:#0f0f0f;border:1px solid #1e1e1e;border-radius:14px;padding:18px;margin-bottom:14px}
+.card.gold{border-color:#1e1800}
+.card.green{border-color:#1e3010}
+.sec{font-size:10px;color:#c9a84c;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px}
+.sec.grn{color:#4caf50}
+.sec.vio{color:#9c7fd4}
+label{font-size:11px;color:#666;letter-spacing:.9px;text-transform:uppercase;display:block;margin:12px 0 4px}
+label.first{margin-top:0}
+input,textarea{width:100%;background:#0e0e0e;border:1px solid #2a2a2a;color:#f0e6c8;border-radius:8px;padding:10px 12px;font-size:14px;font-family:Georgia,serif;outline:none;box-sizing:border-box}
+textarea{resize:vertical;line-height:1.6}
+input:focus,textarea:focus{border-color:#c9a84c44}
+.isbn-row{display:flex;gap:8px}
+.isbn-row input{flex:1;font-size:18px;letter-spacing:2px;text-align:center}
+.btn-gold{background:linear-gradient(135deg,#c9a84c,#a07820);color:#000;padding:10px 18px;font-size:14px;border:none;border-radius:8px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:Georgia,serif}
+.btn-full{width:100%;padding:13px;font-size:14px;margin-top:12px;background:linear-gradient(135deg,#c9a84c,#a07820);color:#000;border:none;border-radius:10px;font-weight:900;cursor:pointer;font-family:Georgia,serif}
+.btn-full.vio{background:linear-gradient(135deg,#7c5cbf,#5a3a9f);color:#fff}
+.btn-sec{width:100%;padding:10px;font-size:12px;background:#1a1400;color:#c9a84c;border:1px solid #2a2000;border-radius:8px;font-weight:700;cursor:pointer;font-family:Georgia,serif;margin-top:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{padding:7px 12px;border-radius:8px;border:1px solid #222;font-size:12px;font-weight:700;cursor:pointer;background:#1a1a1a;color:#777;font-family:Georgia,serif;transition:all .2s}
+.chip.on{background:#c9a84c;color:#000;border-color:#c9a84c}
+.chip.on-v{background:#5a3a9f;color:#e0d0ff;border-color:#7c5cbf}
+.chip-tag{border-radius:20px;padding:6px 11px;font-size:11px;border:1px solid #222;background:#141414;color:#555;font-weight:700;cursor:pointer;font-family:Georgia,serif;transition:all .2s}
+.chip-tag.on{background:#1e3a10;color:#4caf50;border-color:#2a5a1a}
+.chip-tag.on-v{background:#2a1a50;color:#b090ff;border-color:#5a3a9f}
+.chip-valore{border-radius:20px;padding:6px 11px;font-size:11px;border:1px solid #2a2000;background:#1a1200;color:#c9a84c;font-weight:700;cursor:pointer;font-family:Georgia,serif;transition:all .2s}
+.chip-valore.on{background:#3a2800;color:#f0c050;border-color:#c9a84c}
+.chip-nota{border-radius:20px;padding:6px 12px;font-size:11px;background:#1a1a2a;color:#7eb8f7;border:1px solid #1a2a3a;cursor:pointer;font-family:Georgia,serif;white-space:normal;text-align:left}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.book-row{display:flex;gap:14px;align-items:flex-start}
+.book-row img{width:64px;border-radius:6px;border:1px solid #2a2a2a;flex-shrink:0}
+.book-meta{font-size:12px;color:#aaa;line-height:1.8;margin-top:4px}
+.result-box{background:#0c1a0c;border:1px solid #1e3010;border-radius:12px;padding:16px;margin-top:14px}
+.result-box.vio{background:#0c0a1a;border-color:#2a1a50}
+.result-text{font-size:13px;color:#e8f5e9;line-height:1.9;white-space:pre-wrap;word-break:break-word;user-select:all}
+.result-text.vio{color:#e0d8ff}
+.copy-bar{display:flex;gap:8px;margin-top:12px}
+.copy-btn{flex:1;padding:12px;border-radius:8px;border:none;background:#1a3a1a;color:#4caf50;font-size:13px;font-weight:700;cursor:pointer;font-family:Georgia,serif;transition:all .2s}
+.copy-btn.ok{background:#27ae60;color:#fff}
+.copy-btn.vio{background:#1a1040;color:#b090ff;border:1px solid #2a1a50}
+.copy-btn2{flex:1;padding:12px;border-radius:8px;border:1px solid #2a2000;background:#1a1400;color:#c9a84c;font-size:13px;font-weight:700;cursor:pointer;font-family:Georgia,serif}
+.copy-btn2.vio{border-color:#2a1a50;background:#120e20;color:#9070cf}
+.tab-row{display:flex;gap:0;margin-bottom:14px;border-radius:10px;overflow:hidden;border:1px solid #222}
+.tab{flex:1;padding:10px 2px;text-align:center;font-size:10px;font-weight:700;cursor:pointer;border:none;font-family:Georgia,serif;background:#111;color:#555;transition:all .2s}
+.tab.on{background:#c9a84c;color:#000}
+.tab.on-v{background:#7c5cbf;color:#fff}
+.tab.on-arch{background:#1a3a5a;color:#7eb8f7}
+.msg{font-size:12px;margin-top:6px}
+.msg.ok{color:#4caf50}
+.msg.err{color:#e74c3c}
+.status-box{font-size:11px;color:#888;background:#111;border-radius:6px;padding:8px 10px;margin-top:6px;display:none}
+.row-between{display:flex;justify-content:space-between;align-items:center;margin-top:12px;margin-bottom:4px}
+.row-between label{margin:0}
+.edit-btn{font-size:11px;color:#c9a84c;background:#1a1400;border:1px solid #2a2000;border-radius:20px;padding:3px 10px;cursor:pointer;font-family:Georgia,serif;white-space:nowrap}
+.tmpl-section{background:#141414;border:1px solid #222;border-radius:10px;padding:14px;margin-bottom:10px;cursor:grab}
+.tmpl-section.vio{border-color:#1e1040}
+.tmpl-section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.arch-item{background:#111;border:1px solid #1e1e1e;border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer}
+.arch-item-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.arch-item-title{font-size:14px;font-weight:700;color:#f0e6c8;line-height:1.3;flex:1}
+.arch-item-badge{font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:3px 8px;border-radius:20px;flex-shrink:0}
+.arch-item-badge.ebay{background:#1a3a10;color:#4caf50;border:1px solid #2a5a1a}
+.arch-item-badge.vinted{background:#2a1a50;color:#b090ff;border:1px solid #5a3a9f}
+.arch-item-meta{font-size:11px;color:#555;margin-top:5px}
+.arch-item-preview{font-size:12px;color:#666;margin-top:8px;line-height:1.5;white-space:pre-wrap;max-height:60px;overflow:hidden;position:relative}
+.arch-item-preview::after{content:'';position:absolute;bottom:0;left:0;right:0;height:20px;background:linear-gradient(transparent,#111)}
+.arch-del{background:#2a1010;border:none;color:#e74c3c;border-radius:6px;padding:5px 9px;cursor:pointer;font-size:12px;flex-shrink:0}
+.arch-detail{background:#0a0a0a;border:1px solid #1e1e1e;border-radius:10px;padding:14px;margin-top:8px;display:none}
+.arch-detail-text{font-size:13px;color:#ccc;white-space:pre-wrap;line-height:1.8;word-break:break-word;user-select:all}
+.overlay{position:fixed;inset:0;background:#000c;z-index:200;display:flex;align-items:flex-end}
+.modal{background:#111;border:1px solid #333;border-radius:16px 16px 0 0;width:100%;max-height:85vh;overflow-y:auto;padding:20px}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.modal-title{font-size:13px;font-weight:800;color:#c9a84c;text-transform:uppercase;letter-spacing:1px}
+.modal-close{background:none;border:none;color:#888;font-size:22px;cursor:pointer}
+.modal-item{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;background:#1a1a1a;border-radius:8px;padding:8px 12px}
+.modal-item-text{flex:1;font-size:13px;color:#f0e6c8;word-break:break-word}
+.del-btn{background:#3a1010;border:none;color:#e74c3c;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;flex-shrink:0}
+.modal-add{background:#0f0f0f;border-radius:10px;padding:14px;margin-bottom:14px}
+.modal-add-title{font-size:11px;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:.8px}
+.modal-inp{width:100%;background:#0e0e0e;border:1px solid #2a2a2a;color:#f0e6c8;border-radius:8px;padding:10px 12px;font-size:14px;font-family:Georgia,serif;outline:none;box-sizing:border-box;margin-bottom:8px}
+.hint{font-size:11px;color:#444;line-height:1.6;margin-top:4px}
+footer{text-align:center;color:#2a2a2a;font-size:11px;margin-top:20px}
+</style>
+</head>
+<body>
+<header>
+  <div class="tag">&#128218; Black Dahlia Real</div>
+  <h1>Descrizione <span>Builder</span></h1>
+  <p>eBay &middot; Vinted &middot; Archivio</p>
+</header>
+<div class="wrap">
+
+<div class="tab-row" id="mainTabs">
+  <button class="tab on" onclick="showTab('ebay')" id="tab-ebay">&#128230; eBay</button>
+  <button class="tab" onclick="showTab('vinted')" id="tab-vinted">&#128995; Vinted</button>
+  <button class="tab" onclick="showTab('template')" id="tab-template">&#9881;&#65039; Template</button>
+  <button class="tab" onclick="showTab('note')" id="tab-note">&#128221; Note</button>
+  <button class="tab" onclick="showTab('archivio')" id="tab-archivio">&#128193; Archivio</button>
+</div>
+
+<!-- EBAY -->
+<div id="tabEbay">
+  <div class="card gold">
+    <div class="sec">&#128269; Cerca per ISBN</div>
+    <div class="isbn-row">
+      <input type="tel" id="isbnIn" placeholder="9788804123456" maxlength="17" inputmode="numeric">
+      <button class="btn-gold" id="isbnBtn" onclick="doISBN('e')">Cerca</button>
+    </div>
+    <div id="isbnMsg" class="msg"></div>
+    <div id="statusBox" class="status-box"></div>
+    <div style="font-size:11px;color:#333;margin-top:8px;line-height:1.7">ISBN-10 o ISBN-13 &middot; con o senza trattini<br><span style="color:#444">Se non trovato: compila manualmente</span></div>
+  </div>
+  <div class="card green" id="eBookCard" style="display:none">
+    <div class="book-row">
+      <img id="eBookCover" src="" alt="" style="display:none">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:10px;color:#4caf50;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px" id="eBookFonte"></div>
+        <div style="font-size:15px;font-weight:900;line-height:1.3;margin-bottom:3px" id="eBookTitle"></div>
+        <div class="book-meta" id="eBookMeta"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="border-color:#2a2000">
+    <div class="sec">&#127991;&#65039; Titolo eBay</div>
+    <div style="font-size:11px;color:#444;margin-bottom:8px">Solo per l'archivio &mdash; non appare nella descrizione</div>
+    <input type="text" id="eTitoloEbay" placeholder="es. RARO Libro Autore 1983 Prima Edizione" style="border-color:#2a2000" maxlength="80" oninput="aggiornaContatoreEbay(this)">
+    <div id="contatoreEbay" style="font-size:11px;color:#555;text-align:right;margin-top:4px">0 / 80</div>
+    <label style="font-size:10px;color:#c9a84c;letter-spacing:1px;text-transform:uppercase;display:block;margin-top:12px;margin-bottom:4px">Prezzo</label>
+    <input type="tel" id="ePrezzo" placeholder="es. 25" inputmode="decimal" style="border-color:#2a2000">
+  </div>
+  <div class="card">
+    <div class="row-between" style="margin-top:0;margin-bottom:14px">
+      <div class="sec" style="margin:0">&#128214; Dati del Libro</div>
+      <button class="edit-btn" onclick="openModal('fields')">&#9999;&#65039; Campi</button>
+    </div>
+    <div id="eFieldsArea"></div>
+    <div class="row-between"><label>Condizione</label><button class="edit-btn" onclick="openModal('cond')">&#9999;&#65039; Personalizza</button></div>
+    <div class="chips" id="eCondChips"></div>
+    <div class="row-between"><label>Caratteristiche &amp; Valore</label><button class="edit-btn" onclick="openModal('tags')">&#9999;&#65039; Personalizza</button></div>
+    <div class="chips" id="eTagChips"></div>
+    <label>Note specifiche</label>
+    <textarea id="eNote" rows="3" placeholder="Descrivi condizioni specifiche..."></textarea>
+    <div style="margin-top:8px">
+      <div style="font-size:11px;color:#555;margin-bottom:6px">&#128204; Note salvate:</div>
+      <div class="chips" id="eNoteSalvateChips"></div>
+      <div id="eNoNoteMsg" style="font-size:11px;color:#333;display:none">Nessuna nota salvata.</div>
+    </div>
+    <button style="width:100%;padding:8px;margin-top:10px;background:#1a1a2a;color:#7eb8f7;border:1px solid #1a2a3a;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif" onclick="salvaNota()">&#128190; Salva questa nota</button>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button onclick="undoDesc('e')" style="padding:13px 14px;border-radius:10px;border:1px solid #2a2000;background:#1a1400;color:#c9a84c;font-size:18px;cursor:pointer" title="Annulla">&#8617;&#65039;</button>
+      <button class="btn-full" style="margin-top:0;flex:1" onclick="genera('e')">&#10024; Genera eBay</button>
+    </div>
+  </div>
+  <div id="eResultArea" style="display:none">
+    <div class="result-box"><div class="sec grn">&#9989; Descrizione eBay Pronta</div><div class="result-text" id="eResultText"></div></div>
+    <div class="copy-bar">
+      <button class="copy-btn" id="eCopyBtn" onclick="copyDesc('e')">&#128203; Copia</button>
+      <button class="copy-btn2" onclick="genera('e')">&#128260; Rigenera</button>
+    </div>
+    <button class="btn-sec" onclick="salvaInArchivio('e')" style="margin-top:8px">&#128193; Salva in Archivio</button>
+    <div style="font-size:11px;color:#555;margin-top:8px;text-align:center">Tieni premuto il testo per selezionarlo</div>
+  </div>
+</div>
+
+<!-- VINTED -->
+<div id="tabVinted" style="display:none">
+  <div class="card" style="border-color:#2a1a40;background:#0d0d14">
+    <div class="sec vio">&#128269; Cerca per ISBN</div>
+    <div class="isbn-row">
+      <input type="tel" id="vIsbnIn" placeholder="9788804123456" maxlength="17" inputmode="numeric" style="border-color:#2a1a40">
+      <button class="btn-gold" style="background:linear-gradient(135deg,#7c5cbf,#5a3a9f);color:#fff" id="vIsbnBtn" onclick="doISBN('v')">Cerca</button>
+    </div>
+    <div id="vIsbnMsg" class="msg"></div>
+    <div id="vStatusBox" class="status-box"></div>
+  </div>
+  <div class="card" id="vBookCard" style="display:none;border-color:#2a1a40">
+    <div class="book-row">
+      <img id="vBookCover" src="" alt="" style="display:none">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:10px;color:#9c7fd4;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px" id="vBookFonte"></div>
+        <div style="font-size:15px;font-weight:900;line-height:1.3;margin-bottom:3px" id="vBookTitle"></div>
+        <div class="book-meta" id="vBookMeta"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="border-color:#1e1040">
+    <div class="sec vio">&#128214; Dati del Libro</div>
+    <label class="first">Titolo *</label>
+    <input type="text" id="vTitolo" placeholder="Compilato automaticamente" style="border-color:#2a1a40">
+    <div class="grid2">
+      <div><label>Autore</label><input type="text" id="vAutore" placeholder="es. Umberto Eco" style="border-color:#2a1a40"></div>
+      <div><label>Anno</label><input type="tel" id="vAnno" placeholder="es. 1980" inputmode="numeric" style="border-color:#2a1a40"></div>
+    </div>
+    <label>Editore</label><input type="text" id="vEditore" placeholder="es. Bompiani" style="border-color:#2a1a40">
+    <label>Pagine</label><input type="tel" id="vPagine" placeholder="es. 240" inputmode="numeric" style="border-color:#2a1a40">
+    <div class="row-between"><label>Condizione Vinted</label><button class="edit-btn" style="color:#9c7fd4;border-color:#3a1a60;background:#1a0e30" onclick="openModal('vcond')">&#9999;&#65039; Personalizza</button></div>
+    <div class="chips" id="vCondChips"></div>
+    <div class="row-between"><label>Caratteristiche &amp; Valore</label></div>
+    <div class="chips" id="vTagChips"></div>
+    <label>Note specifiche</label>
+    <textarea id="vNote" rows="3" placeholder="Descrivi condizioni specifiche..." style="border-color:#2a1a40"></textarea>
+    <div style="margin-top:8px">
+      <div style="font-size:11px;color:#555;margin-bottom:6px">&#128204; Note salvate:</div>
+      <div class="chips" id="vNoteSalvateChips"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button onclick="undoDesc('v')" style="padding:13px 14px;border-radius:10px;border:1px solid #2a1a40;background:#120e20;color:#9c7fd4;font-size:18px;cursor:pointer">&#8617;&#65039;</button>
+      <button class="btn-full vio" style="margin-top:0;flex:1" onclick="genera('v')">&#10024; Genera Vinted</button>
+    </div>
+  </div>
+  <div id="vResultArea" style="display:none">
+    <div class="result-box vio"><div class="sec vio">&#9989; Descrizione Vinted Pronta</div><div class="result-text vio" id="vResultText"></div></div>
+    <div class="copy-bar">
+      <button class="copy-btn vio" id="vCopyBtn" onclick="copyDesc('v')">&#128203; Copia</button>
+      <button class="copy-btn2 vio" onclick="genera('v')">&#128260; Rigenera</button>
+    </div>
+    <button class="btn-sec" style="color:#9c7fd4;border-color:#2a1a50;background:#120e20" onclick="salvaInArchivio('v')">&#128193; Salva in Archivio</button>
+  </div>
+</div>
+
+<!-- TEMPLATE -->
+<div id="tabTemplate" style="display:none">
+  <div class="card gold"><div class="sec">&#9881;&#65039; Template eBay</div><div class="hint">Sezioni fisse in fondo alla descrizione eBay. Trascina per riordinare.</div></div>
+  <div id="eTmplSections"></div>
+  <button class="btn-sec" onclick="openModal('addSection','e')">+ Aggiungi sezione eBay</button>
+  <button class="btn-full" onclick="salvaTemplate('e')" style="margin-top:8px">&#128190; Salva Template eBay</button>
+  <div id="eTmplMsg" class="msg" style="margin-top:6px"></div>
+  <div style="height:1px;background:#1a1a1a;margin:20px 0"></div>
+  <div class="card" style="border-color:#2a1a40"><div class="sec vio">&#9881;&#65039; Template Vinted</div><div class="hint">Sezioni fisse per Vinted. Trascina per riordinare.</div></div>
+  <div id="vTmplSections"></div>
+  <button class="btn-sec" style="color:#9c7fd4;border-color:#2a1a50;background:#120e20" onclick="openModal('addSection','v')">+ Aggiungi sezione Vinted</button>
+  <button class="btn-full vio" onclick="salvaTemplate('v')" style="margin-top:8px">&#128190; Salva Template Vinted</button>
+  <div id="vTmplMsg" class="msg" style="margin-top:6px"></div>
+  <div style="height:1px;background:#1a1a1a;margin:20px 0"></div>
+  <div class="card" style="border-color:#1a1a2a;background:#0a0a12">
+    <div class="sec" style="color:#7eb8f7">&#127991;&#65039; Etichette Personalizzabili</div>
+    <label class="first">Etichetta "Caratteristiche"</label>
+    <input type="text" id="lblCarattInput" placeholder="es. SPECIFICHE">
+    <label>Etichetta "Stato"</label>
+    <input type="text" id="lblStatoInput" placeholder="es. STATO">
+    <label>Etichetta "Dettagli"</label>
+    <input type="text" id="lblDettagliInput" placeholder="es. DA SEGNALARE">
+    <button class="btn-full" style="background:linear-gradient(135deg,#1a3a5a,#0d2a4a);color:#7eb8f7;margin-top:10px" onclick="salvaEtichette()">&#128190; Salva Etichette</button>
+    <div id="lblMsg" class="msg" style="margin-top:6px"></div>
+  </div>
+</div>
+
+<!-- NOTE -->
+<div id="tabNote" style="display:none">
+  <div class="card">
+    <div class="sec">&#128221; Note Salvate</div>
+    <div class="hint" style="margin-bottom:12px">Fino a 10 note riutilizzabili.</div>
+    <div id="noteSalvateList"></div>
+    <div style="margin-top:14px;background:#0f0f0f;border-radius:10px;padding:14px">
+      <div style="font-size:11px;color:#888;margin-bottom:8px;text-transform:uppercase;letter-spacing:.8px">+ Nuova nota</div>
+      <textarea id="nuovaNota" rows="3" placeholder="es. Pagine ingiallite dal tempo ma integre..."></textarea>
+      <button class="btn-full" style="margin-top:8px" onclick="aggiungiNota()">+ Aggiungi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ARCHIVIO -->
+<div id="tabArchivio" style="display:none">
+  <div class="card" style="border-color:#1a3a5a;background:#090e14">
+    <div class="sec" style="color:#7eb8f7">&#128193; Archivio Descrizioni</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button onclick="filtroArchivio('tutti')" id="fTutti" style="flex:1;padding:7px;border-radius:6px;border:1px solid #1a3a5a;background:#0d1a2a;color:#7eb8f7;font-size:11px;font-weight:700;cursor:pointer;font-family:Georgia,serif">Tutti</button>
+      <button onclick="filtroArchivio('ebay')" id="fEbay" style="flex:1;padding:7px;border-radius:6px;border:1px solid #1a3a1a;background:#0d1a0d;color:#4caf50;font-size:11px;font-weight:700;cursor:pointer;font-family:Georgia,serif">eBay</button>
+      <button onclick="filtroArchivio('vinted')" id="fVinted" style="flex:1;padding:7px;border-radius:6px;border:1px solid #2a1a50;background:#120e20;color:#b090ff;font-size:11px;font-weight:700;cursor:pointer;font-family:Georgia,serif">Vinted</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button onclick="ordinaArchivio('recente')" style="flex:1;padding:6px;border-radius:6px;border:1px solid #2a2000;background:#1a1400;color:#c9a84c;font-size:10px;font-weight:700;cursor:pointer;font-family:Georgia,serif">Recenti</button>
+      <button onclick="ordinaArchivio('vecchio')" style="flex:1;padding:6px;border-radius:6px;border:1px solid #222;background:#111;color:#555;font-size:10px;font-weight:700;cursor:pointer;font-family:Georgia,serif">Meno recenti</button>
+      <button onclick="ordinaArchivio('az')" style="flex:1;padding:6px;border-radius:6px;border:1px solid #222;background:#111;color:#555;font-size:10px;font-weight:700;cursor:pointer;font-family:Georgia,serif">A-Z</button>
+    </div>
+    <input type="text" id="archSearch" placeholder="Cerca per titolo..." style="margin-bottom:10px;font-size:13px" oninput="renderArchivio()">
+    <div id="archivioList"></div>
+    <div id="archivioEmpty" style="text-align:center;color:#333;font-size:13px;padding:20px;display:none">Nessuna descrizione salvata.<br><span style="font-size:11px;color:#222">Genera e premi Salva in Archivio</span></div>
+  </div>
+  <div class="card" style="border-color:#1e1800">
+    <div class="sec">&#128260; Sincronizza</div>
+    <div class="hint" style="margin-bottom:12px">Esporta tutto e importalo su un altro dispositivo.</div>
+    <button onclick="esportaTutto()" style="width:100%;padding:11px;border-radius:8px;border:none;background:linear-gradient(135deg,#c9a84c,#a07820);color:#000;font-size:12px;font-weight:800;cursor:pointer;font-family:Georgia,serif">&#128228; Esporta tutto</button>
+    <div id="exportBox" style="display:none;margin-top:12px">
+      <div style="font-size:11px;color:#888;margin-bottom:6px">Copia tutto e salvalo come nota:</div>
+      <textarea id="exportText" rows="4" onclick="this.select()" readonly style="background:#050505;border:1px solid #2a2a2a;color:#4caf50;font-size:11px;font-family:monospace;resize:none"></textarea>
+      <button onclick="copiaExport()" style="width:100%;margin-top:6px;padding:9px;border-radius:8px;border:none;background:#0d200d;color:#4caf50;font-size:12px;font-weight:800;cursor:pointer;font-family:Georgia,serif">&#128203; Copia testo</button>
+    </div>
+    <div style="margin-top:12px">
+      <div style="font-size:11px;color:#555;margin-bottom:8px">Importa da file o testo:</div>
+      <label style="display:block;width:100%;padding:11px;text-align:center;border-radius:8px;border:1px dashed #2a2000;background:#1a1400;color:#c9a84c;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;box-sizing:border-box">
+        &#128228; Scegli file backup (.json)
+        <input type="file" id="importFile" accept=".json,.txt" style="display:none" onchange="importaDaFile(event)">
+      </label>
+      <div style="font-size:11px;color:#333;text-align:center;margin-bottom:8px">oppure incolla il testo:</div>
+      <textarea id="importText" rows="3" placeholder="Incolla il testo esportato..." style="font-size:11px;font-family:monospace"></textarea>
+      <button onclick="importaDaTesto()" style="width:100%;margin-top:6px;padding:9px;border-radius:8px;border:1px solid #2a2000;background:#1a1400;color:#c9a84c;font-size:12px;font-weight:800;cursor:pointer;font-family:Georgia,serif">&#128229; Applica impostazioni</button>
+    </div>
+    <div id="syncMsg" class="msg" style="margin-top:8px;display:none"></div>
+  </div>
+</div>
+
+<footer>Google Books + Open Library &middot; Black Dahlia Real</footer>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="modalOverlay" style="display:none" onclick="closeModalOutside(event)">
+  <div class="modal" id="modalBox">
+    <div class="modal-head">
+      <div class="modal-title" id="modalTitle"></div>
+      <button class="modal-close" onclick="closeModal()">&#10005;</button>
+    </div>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+var DEF_FIELDS=[{id:'titolo',label:'Titolo',placeholder:'es. Il Nome della Rosa',required:true,half:false},{id:'autore',label:'Autore',placeholder:'es. Umberto Eco',required:false,half:true},{id:'anno',label:'Anno',placeholder:'es. 1980',required:false,half:true},{id:'editore',label:'Editore',placeholder:'es. Bompiani',required:false,half:false},{id:'pagine',label:'Pagine',placeholder:'es. 502',required:false,half:false}];
+var DEF_COND=[{v:'Nuovo',frase:'Il libro e in condizioni perfette, mai letto, come nuovo di fabbrica.'},{v:'Come nuovo',frase:'Il libro e in ottime condizioni, praticamente come nuovo, con minime tracce di utilizzo.'},{v:'Ottime condizioni',frase:'Il libro e in ottime condizioni generali. La copertina puo presentare imperfezioni e le pagine un lieve ingiallimento. Vedi foto per dettagli.'},{v:'Buone condizioni',frase:'Il libro e in buone condizioni generali. Presenta le normali tracce di un utilizzo attento.'},{v:'Condizioni accettabili',frase:'Il libro presenta segni visibili di utilizzo ma e completo e leggibile in ogni sua parte.'},{v:'Da restauro',frase:'Il libro necessita di restauro. Prezzo conseguentemente ridotto. Vedi foto per dettagli.'}];
+var DEF_VCOND=[{v:'Nuovo con etichetta',frase:'Articolo nuovo, mai usato, con etichetta originale.'},{v:'Nuovo senza etichetta',frase:'Articolo nuovo, mai usato, senza etichetta.'},{v:'Ottime condizioni',frase:'Il libro e in ottime condizioni generali. Copertina integra, pagine pulite e senza strappi.'},{v:'Buone condizioni',frase:'Il libro e in buone condizioni generali. Presenta le normali tracce di un utilizzo attento.'},{v:'Condizioni accettabili',frase:'Il libro presenta segni visibili di utilizzo ma e completo e leggibile in ogni sua parte.'}];
+var DEF_TAGS=[{t:'PRIMA EDIZIONE',tipo:'tag'},{t:'RARO',tipo:'tag'},{t:'FUORI CATALOGO',tipo:'tag'},{t:'AUTOGRAFATO',tipo:'tag'},{t:'ILLUSTRATO',tipo:'tag'},{t:'COPERTINA RIGIDA',tipo:'tag'},{t:'BROSSURA',tipo:'tag'},{t:'CON SOVRACCOPERTA',tipo:'tag'},{t:'COFANETTO',tipo:'tag'},{t:'NUMERATO',tipo:'tag'},{t:'DEDICA AUTORE',tipo:'tag'},{t:'TIRATURA LIMITATA',tipo:'tag'},{t:'DA COLLEZIONE',tipo:'valore'},{t:'INTROVABILE',tipo:'valore'},{t:'OPERA DI PREGIO',tipo:'valore'},{t:'MUST HAVE',tipo:'valore'}];
+var DEF_ETMPL=[{id:'t1',title:'CONTATTI',testo:'BlackDahliaReal\nRoma - Metro Garbatella\nblackdahliareal@yahoo.com\n3716518635'},{id:'t2',title:'SPEDIZIONE',testo:'BRT 48h\nPoste italiane\nImballaggio a regola d\'arte.\n(In caso di preferenze per corrieri alternativi si prega di contattarci tempestivamente).'},{id:'t3',title:'PROMO',testo:'Agevolazioni per acquisti multipli o ritiro a mano.'},{id:'t4',title:'POLITICA RESI',testo:'Si accettano resi entro 14 giorni, da legge in vigore.\nCosto a carico dell\'acquirente per ripensamento.\nCosto a carico del venditore se l\'articolo non corrisponde alla descrizione.\nE gradito un contatto prima di aprire una contestazione, una soluzione si trova sempre.'},{id:'t5',title:'CONFORMITA DESCRIZIONE',testo:'Le fotografie sono parte integrante della descrizione. Ogni difetto e segnalato visivamente e l\'articolo viene inquadrato da tutte le angolazioni. Se qualcosa dovesse sfuggire al nostro controllo, ci scusiamo in anticipo e ci rendiamo disponibili.'}];
+var DEF_VTMPL=[{id:'v1',title:'TRATTABILITA',testo:'Agevolazioni per acquisti multipli o ritiro a mano.'},{id:'v2',title:'CONFORMITA DESCRIZIONE',testo:'Le condizioni dell\'articolo sono visivamente riscontrabili dalle numerose immagini proposte che sono parte integrante della descrizione.\n\nPer maggiori info e ulteriori dettagli, non esitate a contattarci.'}];
+var VALORE_FRASI={'DA COLLEZIONE':'Un pezzo da collezione, ideale per gli appassionati del settore.','INTROVABILE':'Volume introvabile sul mercato, opportunita rara per i collezionisti.','OPERA DI PREGIO':'Un opera di pregio, perfetta per biblioteche private e collezioni d\'autore.','MUST HAVE':'Un must have per chiunque apprezzi questo genere o autore.'};
+var TAG_MAP={'PRIMA EDIZIONE':'prima edizione','RARO':'volume raro e difficile da reperire','FUORI CATALOGO':'attualmente fuori catalogo','AUTOGRAFATO':'presenta firma/dedica autografa dell\'autore','ILLUSTRATO':'riccamente illustrato','NUMERATO':'esemplare numerato','TIRATURA LIMITATA':'tiratura limitata','CON SOVRACCOPERTA':'completo di sovraccoperta originale','COPERTINA RIGIDA':'rilegatura in copertina rigida','BROSSURA':'in brossura','DEDICA AUTORE':'presenta dedica dell\'autore','COFANETTO':'cofanetto'};
+
+function ls(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
+function ss(k,v){localStorage.setItem(k,JSON.stringify(v));}
+function lsC(nk,ok,d){var n=localStorage.getItem(nk);if(n){try{return JSON.parse(n);}catch(e){}}var o=localStorage.getItem(ok);if(o){try{return JSON.parse(o);}catch(e){}}return d;}
+
+
+var GKEY='AIzaSyB7SEHDl1wjOBO6uNZ8OYj0EZaRkTw9O9I';
+var fields=lsC('eb3_fields','eb2_fields',DEF_FIELDS);
+var conditions=lsC('eb3_cond','eb2_cond',DEF_COND);
+var vconditions=ls('eb3_vcond',DEF_VCOND);
+var allTags=lsC('eb3_tags','eb2_tags',DEF_TAGS);
+var eTmpl=lsC('eb3_etmpl','eb2_tmpl',DEF_ETMPL);
+var vTmpl=ls('eb3_vtmpl',DEF_VTMPL);
+var noteSalvate=lsC('eb3_note','eb2_note',[]);
+var archivio=ls('eb3_archivio',[]);
+var labelCaratt=localStorage.getItem('eb3_lbl_caratt')||'SPECIFICHE';
+var labelStato=localStorage.getItem('eb3_lbl_stato')||'STATO';
+var labelDettagli=localStorage.getItem('eb3_lbl_dettagli')||'DA SEGNALARE';
+var eCondSel='Buone condizioni',eCondFrase=DEF_COND[3].frase;
+var vCondSel='Ottime condizioni',vCondFrase=DEF_VCOND[2].frase;
+var eTagsSel=[],eValoreSel='';
+var vTagsSel=[],vValoreSel='';
+var undoHistory={e:[],v:[]};
+var modalType='',modalPlatform='';
+var archFiltro='tutti';var archOrdine='recente';
+var currentTab='ebay';
+var dragSrcIdx=null,dragPfx=null;
+
+function aggiornaContatoreEbay(el){
+  var n=el.value.length;
+  var el2=document.getElementById('contatoreEbay');
+  el2.textContent=n+' / 80';
+  el2.style.color=n>75?'#e74c3c':n>60?'#c9a84c':'#555';
+}
+function toBoldU(str){var bA=0x1D400,ba=0x1D41A;return str.split('').map(function(ch){if(ch>='A'&&ch<='Z')return String.fromCodePoint(bA+ch.charCodeAt(0)-65);if(ch>='a'&&ch<='z')return String.fromCodePoint(ba+ch.charCodeAt(0)-97);return ch;}).join('');}
+
+function showTab(t){
+  currentTab=t;
+  ['Ebay','Vinted','Template','Note','Archivio'].forEach(function(n){document.getElementById('tab'+n).style.display=n.toLowerCase()===t?'block':'none';});
+  document.querySelectorAll('#mainTabs .tab').forEach(function(b){b.classList.remove('on','on-v','on-arch');});
+  var map={ebay:'tab-ebay',vinted:'tab-vinted',template:'tab-template',note:'tab-note',archivio:'tab-archivio'};
+  var el=document.getElementById(map[t]);
+  if(t==='vinted')el.classList.add('on-v');
+  else if(t==='archivio')el.classList.add('on-arch');
+  else el.classList.add('on');
+  if(t==='template'){renderETmpl();renderVTmpl();}
+  if(t==='note')renderNoteList();
+  if(t==='archivio')renderArchivio();
+}
+
+function renderFields(){
+  var area=document.getElementById('eFieldsArea');if(!area)return;
+  var html='',i=0;
+  while(i<fields.length){
+    var f=fields[i];
+    if(f.half&&i+1<fields.length&&fields[i+1].half){var f2=fields[i+1];html+='<div class="grid2"><div><label>'+f.label+(f.required?' *':'')+'</label><input type="text" id="e_'+f.id+'" placeholder="'+f.placeholder+'"></div><div><label>'+f2.label+(f2.required?' *':'')+'</label><input type="text" id="e_'+f2.id+'" placeholder="'+f2.placeholder+'"></div></div>';i+=2;}
+    else{html+='<div><label>'+f.label+(f.required?' *':'')+'</label><input type="text" id="e_'+f.id+'" placeholder="'+f.placeholder+'"></div>';i++;}
+  }
+  area.innerHTML=html;
+}
+function getFieldValues(){var v={};fields.forEach(function(f){var el=document.getElementById('e_'+f.id);if(el)v[f.id]=el.value.trim();});return v;}
+function setFieldValues(data){fields.forEach(function(f){var el=document.getElementById('e_'+f.id);if(el&&data[f.id])el.value=data[f.id];});}
+
+function renderCondChips(pfx){
+  var conds=pfx==='e'?conditions:vconditions,sel=pfx==='e'?eCondSel:vCondSel;
+  document.getElementById(pfx+'CondChips').innerHTML=conds.map(function(c){var on=sel===c.v;return '<button class="chip'+(on?(pfx==='e'?' on':' on-v'):'')+'" onclick="pickCond(\''+pfx+'\',this)" data-v="'+c.v+'" data-frase="'+encodeURIComponent(c.frase||'')+'">'+c.v+'</button>';}).join('');
+}
+function pickCond(pfx,b){var v=b.dataset.v,frase=decodeURIComponent(b.dataset.frase||'');if(pfx==='e'){eCondSel=v;eCondFrase=frase;}else{vCondSel=v;vCondFrase=frase;}document.querySelectorAll('#'+pfx+'CondChips .chip').forEach(function(x){x.classList.remove('on','on-v');});b.classList.add(pfx==='e'?'on':'on-v');}
+
+function renderTagChips(pfx){
+  var tagsSel=pfx==='e'?eTagsSel:vTagsSel,valoreSel=pfx==='e'?eValoreSel:vValoreSel;
+  document.getElementById(pfx+'TagChips').innerHTML=allTags.map(function(item){if(item.tipo==='valore'){var on=valoreSel===item.t;return '<button class="chip-valore'+(on?' on':'')+'" onclick="pickValore(\''+pfx+'\',this)" data-v="'+item.t+'">&#11088; '+item.t+'</button>';}var on=tagsSel.includes(item.t);return '<button class="chip-tag'+(on?(pfx==='e'?' on':' on-v'):'')+'" onclick="toggleTag(\''+pfx+'\',this)">'+(on?'&#10003; ':'')+item.t+'</button>';}).join('');
+}
+function toggleTag(pfx,b){var t=b.textContent.replace('\u2713 ','').trim();if(pfx==='e')eTagsSel=eTagsSel.includes(t)?eTagsSel.filter(function(x){return x!==t;}):[...eTagsSel,t];else vTagsSel=vTagsSel.includes(t)?vTagsSel.filter(function(x){return x!==t;}):[...vTagsSel,t];var sel=pfx==='e'?eTagsSel:vTagsSel;b.classList.toggle('on',pfx==='e'&&sel.includes(t));b.classList.toggle('on-v',pfx==='v'&&sel.includes(t));b.textContent=(sel.includes(t)?'\u2713 ':'')+t;}
+function pickValore(pfx,b){if(pfx==='e')eValoreSel=eValoreSel===b.dataset.v?'':b.dataset.v;else vValoreSel=vValoreSel===b.dataset.v?'':b.dataset.v;renderTagChips(pfx);}
+
+function renderNoteSalvateChips(pfx){var c=document.getElementById(pfx+'NoteSalvateChips'),msg=document.getElementById(pfx+'NoNoteMsg');if(!noteSalvate.length){c.innerHTML='';if(msg)msg.style.display='block';return;}if(msg)msg.style.display='none';c.innerHTML=noteSalvate.map(function(n,i){return '<button class="chip-nota" onclick="inserisciNota(\''+pfx+'\','+i+')">'+(n.length>55?n.slice(0,55)+'...':n)+'</button>';}).join('');}
+function inserisciNota(pfx,i){var el=document.getElementById(pfx+'Note'),curr=el.value.trimEnd();el.value=curr?(curr+(curr.endsWith(';')||curr.endsWith('.')?'':';')+' '+noteSalvate[i]):noteSalvate[i];}
+function salvaNota(){var txt=document.getElementById(currentTab==='vinted'?'vNote':'eNote').value.trim();if(!txt){alert('Scrivi prima una nota.');return;}if(noteSalvate.includes(txt)){alert('Gia salvata.');return;}if(noteSalvate.length>=10){alert('Massimo 10 note.');return;}noteSalvate.push(txt);ss('eb3_note',noteSalvate);renderNoteSalvateChips('e');renderNoteSalvateChips('v');alert('Nota salvata!');}
+function renderNoteList(){var c=document.getElementById('noteSalvateList');if(!noteSalvate.length){c.innerHTML='<div style="color:#444;font-size:13px;text-align:center;padding:16px">Nessuna nota salvata</div>';return;}c.innerHTML=noteSalvate.map(function(n,i){return '<div class="modal-item" style="margin-bottom:8px"><div class="modal-item-text">'+n+'</div><button class="del-btn" onclick="eliminaNota('+i+')">&#10005;</button></div>';}).join('');}
+function aggiungiNota(){var txt=document.getElementById('nuovaNota').value.trim();if(!txt)return;if(noteSalvate.length>=10){alert('Massimo 10.');return;}noteSalvate.push(txt);ss('eb3_note',noteSalvate);document.getElementById('nuovaNota').value='';renderNoteList();renderNoteSalvateChips('e');renderNoteSalvateChips('v');}
+function eliminaNota(i){noteSalvate.splice(i,1);ss('eb3_note',noteSalvate);renderNoteList();renderNoteSalvateChips('e');renderNoteSalvateChips('v');}
+
+function renderETmpl(){document.getElementById('eTmplSections').innerHTML=eTmpl.map(function(s,i){return '<div class="tmpl-section" draggable="true" data-idx="'+i+'" ondragstart="dragStart(event,\'e\')" ondragover="dragOver(event)" ondrop="dragDrop(event,\'e\')" ondragend="dragEnd(event)"><div class="tmpl-section-head"><span style="color:#444;font-size:16px;margin-right:8px">&#8943;</span><input value="'+s.title+'" style="background:transparent;border:none;border-bottom:1px solid #2a2000;color:#c9a84c;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;padding:2px 0;width:0;flex:1;min-width:0;outline:none" onchange="eTmpl['+i+'].title=this.value"><button class="del-btn" style="margin-left:8px" onclick="eTmpl.splice('+i+',1);ss(\'eb3_etmpl\',eTmpl);renderETmpl()">&#10005;</button></div><textarea rows="3" style="margin-top:4px" placeholder="Lascia vuoto per escludere..." onchange="eTmpl['+i+'].testo=this.value">'+( s.testo||'')+'</textarea></div>';}).join('');}
+function renderVTmpl(){document.getElementById('vTmplSections').innerHTML=vTmpl.map(function(s,i){return '<div class="tmpl-section vio" draggable="true" data-idx="'+i+'" ondragstart="dragStart(event,\'v\')" ondragover="dragOver(event)" ondrop="dragDrop(event,\'v\')" ondragend="dragEnd(event)"><div class="tmpl-section-head"><span style="color:#444;font-size:16px;margin-right:8px">&#8943;</span><input value="'+s.title+'" style="background:transparent;border:none;border-bottom:1px solid #2a1a40;color:#9c7fd4;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;padding:2px 0;width:0;flex:1;min-width:0;outline:none" onchange="vTmpl['+i+'].title=this.value"><button class="del-btn" style="margin-left:8px" onclick="vTmpl.splice('+i+',1);ss(\'eb3_vtmpl\',vTmpl);renderVTmpl()">&#10005;</button></div><textarea rows="3" style="margin-top:4px" placeholder="Lascia vuoto per escludere..." onchange="vTmpl['+i+'].testo=this.value">'+( s.testo||'')+'</textarea></div>';}).join('');}
+
+function salvaTemplate(pfx){if(pfx==='e'){document.querySelectorAll('#eTmplSections textarea').forEach(function(ta,i){if(eTmpl[i])eTmpl[i].testo=ta.value.trim();});document.querySelectorAll('#eTmplSections input').forEach(function(inp,i){if(eTmpl[i])eTmpl[i].title=inp.value.trim();});ss('eb3_etmpl',eTmpl);showMsg('eTmplMsg','Template eBay salvato!');}else{document.querySelectorAll('#vTmplSections textarea').forEach(function(ta,i){if(vTmpl[i])vTmpl[i].testo=ta.value.trim();});document.querySelectorAll('#vTmplSections input').forEach(function(inp,i){if(vTmpl[i])vTmpl[i].title=inp.value.trim();});ss('eb3_vtmpl',vTmpl);showMsg('vTmplMsg','Template Vinted salvato!');}}
+function showMsg(id,txt){var el=document.getElementById(id);el.textContent=txt;el.className='msg ok';setTimeout(function(){el.textContent='';},2500);}
+
+function dragStart(e,pfx){dragSrcIdx=parseInt(e.currentTarget.dataset.idx);dragPfx=pfx;e.currentTarget.style.opacity='0.4';e.dataTransfer.effectAllowed='move';}
+function dragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';return false;}
+function dragDrop(e,pfx){e.stopPropagation();var destIdx=parseInt(e.currentTarget.dataset.idx);if(dragSrcIdx===null||dragSrcIdx===destIdx)return;var tmpl=pfx==='e'?eTmpl:vTmpl;var containers=document.querySelectorAll(pfx==='e'?'#eTmplSections .tmpl-section':'#vTmplSections .tmpl-section');containers.forEach(function(el,i){if(tmpl[i]){tmpl[i].testo=el.querySelector('textarea').value;tmpl[i].title=el.querySelector('input').value;}});var moved=tmpl.splice(dragSrcIdx,1)[0];tmpl.splice(destIdx,0,moved);if(pfx==='e'){eTmpl=tmpl.slice();ss('eb3_etmpl',eTmpl);renderETmpl();}else{vTmpl=tmpl.slice();ss('eb3_vtmpl',vTmpl);renderVTmpl();}dragSrcIdx=null;return false;}
+function dragEnd(e){e.currentTarget.style.opacity='1';}
+
+function salvaEtichette(){labelCaratt=document.getElementById('lblCarattInput').value.trim().toUpperCase()||'SPECIFICHE';labelStato=document.getElementById('lblStatoInput').value.trim().toUpperCase()||'STATO';labelDettagli=document.getElementById('lblDettagliInput').value.trim().toUpperCase()||'DA SEGNALARE';localStorage.setItem('eb3_lbl_caratt',labelCaratt);localStorage.setItem('eb3_lbl_stato',labelStato);localStorage.setItem('eb3_lbl_dettagli',labelDettagli);showMsg('lblMsg','Etichette salvate!');}
+function loadEtichette(){document.getElementById('lblCarattInput').value=labelCaratt;document.getElementById('lblStatoInput').value=labelStato;document.getElementById('lblDettagliInput').value=labelDettagli;}
+
+async function doISBN(pfx){
+  var raw=document.getElementById(pfx==='e'?'isbnIn':'vIsbnIn').value.replace(/[-\s]/g,'');
+  var msgEl=document.getElementById(pfx==='e'?'isbnMsg':'vIsbnMsg');
+  var statusEl=document.getElementById(pfx==='e'?'statusBox':'vStatusBox');
+  if(raw.length!==10&&raw.length!==13){msgEl.textContent='ISBN deve essere di 10 o 13 cifre.';msgEl.className='msg err';return;}
+  msgEl.textContent='';statusEl.textContent='Cerco su Google Books...';statusEl.style.display='block';
+  var btn=document.getElementById(pfx==='e'?'isbnBtn':'vIsbnBtn');btn.textContent='...';btn.disabled=true;
+  var data=null;
+  try{var r=await fetch('https://www.googleapis.com/books/v1/volumes?q=isbn:'+raw+'&key='+GKEY);var d=await r.json();if(d.totalItems&&d.items&&d.items.length){var v=d.items[0].volumeInfo;data={titolo:v.title||'',autore:(v.authors||[]).join(', '),anno:(v.publishedDate||'').slice(0,4),editore:v.publisher||'',pagine:v.pageCount?String(v.pageCount):'',lingua:v.language||'',cover:(v.imageLinks&&v.imageLinks.thumbnail?v.imageLinks.thumbnail.replace('http://','https://'):null),fonte:'Google Books'};}}catch(e){}
+  if(!data||!data.titolo){statusEl.textContent='Google Books: non trovato. Provo Open Library...';try{var r2=await fetch('https://openlibrary.org/api/books?bibkeys=ISBN:'+raw+'&format=json&jscmd=data');var d2=await r2.json();var b=d2['ISBN:'+raw];if(b)data={titolo:(b.title||'').trim(),autore:(b.authors||[]).map(function(a){return a.name;}).join(', '),anno:b.publish_date?b.publish_date.replace(/\D/g,'').slice(0,4):'',editore:(b.publishers||[]).map(function(p){return p.name;}).join(', '),pagine:b.number_of_pages?String(b.number_of_pages):'',lingua:'',cover:(b.cover&&b.cover.medium?b.cover.medium:null),fonte:'Open Library'};}catch(e){}}
+  if(!data||!data.titolo){msgEl.textContent='Libro non trovato. Compila manualmente.';msgEl.className='msg err';statusEl.style.display='none';}
+  else{if(pfx==='e')setFieldValues(data);else{document.getElementById('vTitolo').value=data.titolo||'';document.getElementById('vAutore').value=data.autore||'';document.getElementById('vAnno').value=data.anno||'';document.getElementById('vEditore').value=data.editore||'';document.getElementById('vPagine').value=data.pagine||'';}document.getElementById(pfx==='e'?'eBookFonte':'vBookFonte').textContent='OK '+data.fonte;document.getElementById(pfx==='e'?'eBookTitle':'vBookTitle').textContent=data.titolo;var meta='';if(data.autore)meta+=data.autore+'\n';if(data.editore)meta+=data.editore+(data.anno?', '+data.anno:'')+'\n';if(data.pagine)meta+=data.pagine+' pag'+(data.lingua?' - '+data.lingua:'');var m=document.getElementById(pfx==='e'?'eBookMeta':'vBookMeta');m.style.whiteSpace='pre-line';m.textContent=meta;if(data.cover){var img=document.getElementById(pfx==='e'?'eBookCover':'vBookCover');img.src=data.cover;img.style.display='block';}document.getElementById(pfx==='e'?'eBookCard':'vBookCard').style.display='block';msgEl.textContent='Trovato su '+data.fonte;msgEl.className='msg ok';statusEl.style.display='none';}
+  btn.textContent='Cerca';btn.disabled=false;
+}
+
+function genera(pfx){
+  var prev=document.getElementById(pfx+'ResultText').textContent;if(prev)undoHistory[pfx].push(prev);if(undoHistory[pfx].length>10)undoHistory[pfx].shift();
+  var fv,tagsSel,valoreSel,condFrase,noteVal,tmpl;
+  if(pfx==='e'){fv=getFieldValues();tagsSel=eTagsSel;valoreSel=eValoreSel;condFrase=eCondFrase;noteVal=document.getElementById('eNote').value.trim();tmpl=eTmpl;}
+  else{fv={titolo:document.getElementById('vTitolo').value.trim(),autore:document.getElementById('vAutore').value.trim(),anno:document.getElementById('vAnno').value.trim(),editore:document.getElementById('vEditore').value.trim(),pagine:document.getElementById('vPagine').value.trim()};tagsSel=vTagsSel;valoreSel=vValoreSel;condFrase=vCondFrase;noteVal=document.getElementById('vNote').value.trim();tmpl=vTmpl;}
+  if(!fv.titolo){alert('Inserisci almeno il titolo.');return;}
+  var parti=[],righe=[];
+  if(pfx==='e'){fields.forEach(function(f){if(fv[f.id])righe.push('\u2022 '+toBoldU(f.label.toUpperCase())+': '+fv[f.id]);});}
+  else{if(fv.titolo)righe.push('\u2022 '+toBoldU('TITOLO')+': '+fv.titolo);if(fv.autore)righe.push('\u2022 '+toBoldU('AUTORE')+': '+fv.autore);if(fv.anno)righe.push('\u2022 '+toBoldU('ANNO')+': '+fv.anno);if(fv.editore)righe.push('\u2022 '+toBoldU('EDITORE')+': '+fv.editore);if(fv.pagine)righe.push('\u2022 '+toBoldU('PAGINE')+': '+fv.pagine);}
+  parti.push(righe.join('\n'));
+  if(valoreSel&&VALORE_FRASI[valoreSel])parti.push(VALORE_FRASI[valoreSel]);
+  if(tagsSel.length)parti.push('\uD83D\uDD16 '+labelCaratt+': '+tagsSel.map(function(t){return TAG_MAP[t]||t.toLowerCase();}).join('; '));
+  parti.push('\uD83D\uDD0D '+labelStato+': '+condFrase);
+  if(noteVal)parti.push('\u26A0\uFE0F '+labelDettagli+': '+noteVal);
+  var fissi=[];tmpl.forEach(function(s){var t=(s.testo||'').trim();if(t)fissi.push(s.title+'\n\n'+t);});
+  var testo=parti.join('\n\n');if(fissi.length)testo+='\n\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n'+fissi.join('\n\n');
+  document.getElementById(pfx+'ResultText').textContent=testo;document.getElementById(pfx+'ResultArea').style.display='block';document.getElementById(pfx+'ResultArea').scrollIntoView({behavior:'smooth',block:'start'});
+  if(pfx==='e') sincronizzaVinted();
+}
+
+function sincronizzaVinted(){
+  var fv=getFieldValues();
+  document.getElementById('vTitolo').value=fv.titolo||'';
+  document.getElementById('vAutore').value=fv.autore||'';
+  document.getElementById('vAnno').value=fv.anno||'';
+  document.getElementById('vEditore').value=fv.editore||'';
+  document.getElementById('vPagine').value=fv.pagine||'';
+  document.getElementById('vNote').value=document.getElementById('eNote').value;
+  document.getElementById('vIsbnIn').value=document.getElementById('isbnIn').value;
+  vTagsSel=eTagsSel.slice();vValoreSel=eValoreSel;
+  var vCond=vconditions.find(function(x){return x.v===eCondSel;})||vconditions[2]||vconditions[0];
+  vCondSel=vCond.v;vCondFrase=vCond.frase;
+  renderCondChips('v');renderTagChips('v');
+  genera('v');
+}
+
+function undoDesc(pfx){var hist=undoHistory[pfx];if(!hist.length){alert('Nessuna versione precedente.');return;}document.getElementById(pfx+'ResultText').textContent=hist.pop();document.getElementById(pfx+'ResultArea').style.display='block';}
+
+function copyDesc(pfx){var txt=document.getElementById(pfx+'ResultText').textContent,btnId=pfx+'CopyBtn',ok=function(){var b=document.getElementById(btnId);b.textContent='Copiato!';b.classList.add('ok');setTimeout(function(){b.textContent='Copia';b.classList.remove('ok');},2000);};if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(ok).catch(function(){fbCopy(txt,ok);});else fbCopy(txt,ok);}
+function fbCopy(txt,ok){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){if(ok)ok();}).catch(function(){
+      var ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');if(ok)ok();}catch(e){}document.body.removeChild(ta);
+    });
+  } else {
+    var ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');if(ok)ok();}catch(e){}document.body.removeChild(ta);
+  }
+}
+
+function salvaInArchivio(pfx){
+  var testo=document.getElementById(pfx+'ResultText').textContent;if(!testo)return;
+  var titolo=pfx==='e'?(getFieldValues().titolo||'Senza titolo'):(document.getElementById('vTitolo').value.trim()||'Senza titolo');
+  var isbn=document.getElementById(pfx==='e'?'isbnIn':'vIsbnIn').value.replace(/[-\s]/g,'')||'';
+  var titoloEbay=pfx==='e'?(document.getElementById('eTitoloEbay').value.trim()||''):'';
+  var prezzo=pfx==='e'?(document.getElementById('ePrezzo').value.trim()||''):'';
+  
+  var now=new Date().toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  var item={id:Date.now(),titolo:titolo,isbn:isbn,titoloEbay:titoloEbay,prezzo:prezzo,piattaforma:pfx==='e'?'ebay':'vinted',data:now,testo:testo};
+  archivio.unshift(item);
+  if(pfx==='e'){
+    var testoV=document.getElementById('vResultText').textContent;
+    if(testoV){
+      var itemV={id:Date.now()+1,titolo:titolo,isbn:isbn,titoloEbay:titoloEbay,prezzo:prezzo,piattaforma:'vinted',data:now,testo:testoV};
+      archivio.unshift(itemV);
+    }
+  }
+  ss('eb3_archivio',archivio);
+  
+}
+
+function filtroArchivio(f){archFiltro=f;renderArchivio();}
+function ordinaArchivio(o){archOrdine=o;renderArchivio();}
+function renderArchivio(){
+  var search=(document.getElementById('archSearch')?document.getElementById('archSearch').value:'').toLowerCase();
+  var items=archivio.slice();
+  if(archFiltro!=='tutti')items=items.filter(function(x){return x.piattaforma===archFiltro;});
+  if(search)items=items.filter(function(x){return x.titolo.toLowerCase().includes(search);});
+  if(archOrdine==='vecchio')items=items.reverse();
+  else if(archOrdine==='az')items.sort(function(a,b){return a.titolo.localeCompare(b.titolo);});
+  var list=document.getElementById('archivioList'),empty=document.getElementById('archivioEmpty');
+  if(!items.length){list.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';list.innerHTML='';
+  items.forEach(function(item){
+    var div=document.createElement('div');div.className='arch-item';
+    div.onclick=function(){toggleArchDetail(item.id);};
+    var isbnHtml='';
+    if(item.isbn){var d1=document.createElement('div');d1.style.cssText='display:flex;align-items:center;gap:8px;margin-top:5px';var s1=document.createElement('span');s1.style.cssText='font-size:10px;color:#444;text-transform:uppercase;letter-spacing:.8px';s1.textContent='ISBN:';var s2=document.createElement('span');s2.style.cssText='font-family:monospace;font-size:12px;color:#c9a84c;letter-spacing:1px';s2.textContent=item.isbn;var b1=document.createElement('button');b1.style.cssText='padding:2px 8px;border-radius:4px;border:none;background:#1a1400;color:#c9a84c;font-size:10px;font-weight:700;cursor:pointer';b1.textContent='Copia';(function(v){b1.onclick=function(e){e.stopPropagation();fbCopy(v,function(){});};})(item.isbn);d1.appendChild(s1);d1.appendChild(s2);d1.appendChild(b1);isbnHtml=d1.outerHTML;}
+    var prezzoHtml='';
+    if(item.prezzo){var d2=document.createElement('div');d2.style.cssText='display:flex;align-items:center;gap:8px;margin-top:5px';var s3=document.createElement('span');s3.style.cssText='font-size:10px;color:#444;text-transform:uppercase;letter-spacing:.8px';s3.textContent='Prezzo:';var s4=document.createElement('span');s4.style.cssText='font-size:13px;font-weight:700;color:#4caf50';s4.textContent=item.prezzo;var b2=document.createElement('button');b2.style.cssText='padding:2px 8px;border-radius:4px;border:none;background:#1a3a1a;color:#4caf50;font-size:10px;font-weight:700;cursor:pointer';b2.textContent='Copia';(function(v){b2.onclick=function(e){e.stopPropagation();fbCopy(v,function(){});};})(item.prezzo);d2.appendChild(s3);d2.appendChild(s4);d2.appendChild(b2);prezzoHtml=d2.outerHTML;}
+    var tEbayHtml=item.titoloEbay?'<div style="margin-top:6px;padding:6px 10px;background:#0f0c00;border:1px solid #2a2000;border-radius:6px"><div style="font-size:10px;color:#666;letter-spacing:.8px;text-transform:uppercase;margin-bottom:3px">Titolo eBay</div><div style="font-size:12px;color:#c9a84c;line-height:1.4">'+item.titoloEbay+'</div><button onclick="event.stopPropagation();copiaTestoSicuro(\''+encodeURIComponent(item.titoloEbay)+'\')" style="margin-top:4px;padding:2px 8px;border-radius:4px;border:none;background:#1a1400;color:#c9a84c;font-size:10px;font-weight:700;cursor:pointer">Copia titolo</button></div>':'';
+    div.innerHTML='<div class="arch-item-head"><div class="arch-item-title">'+item.titolo+'</div><span class="arch-item-badge '+item.piattaforma+'">'+(item.piattaforma==='ebay'?'eBay':'Vinted')+'</span><button class="arch-del" onclick="event.stopPropagation();eliminaArchivio('+item.id+')">&#128465;&#65039;</button></div><div class="arch-item-meta">'+item.data+'</div>'+isbnHtml+prezzoHtml+tEbayHtml+'<div class="arch-item-preview">'+item.testo.slice(0,120)+'</div>'+'<button onclick="event.stopPropagation();fbCopy(archivio.find(function(x){return x.id==='+item.id+';}).testo,function(){})" style="margin-top:8px;width:100%;padding:9px;border-radius:7px;border:none;background:#1a3a1a;color:#4caf50;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">&#128203; Copia descrizione</button>'+'<div class="arch-detail" id="arch-detail-'+item.id+'"><div class="arch-detail-text">'+item.testo+'</div><div style="display:flex;gap:8px;margin-top:10px"><button onclick="event.stopPropagation();copiaTestoSicuro(\''+encodeURIComponent(item.testo)+'\')" style="flex:1;padding:9px;border-radius:7px;border:none;background:#1a3a1a;color:#4caf50;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">Copia</button><button onclick="event.stopPropagation();eliminaArchivio('+item.id+')" style="flex:1;padding:9px;border-radius:7px;border:1px solid #3a1010;background:#1a0808;color:#e74c3c;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">Elimina</button></div></div>';
+    list.appendChild(div);
+  });
+}
+function copiaTestoSicuro(enc){fbCopy(decodeURIComponent(enc),function(){});}
+function toggleArchDetail(id){var el=document.getElementById('arch-detail-'+id);if(el)el.style.display=el.style.display==='block'?'none':'block';}
+function eliminaArchivio(id){if(!confirm('Eliminare?'))return;archivio=archivio.filter(function(x){return x.id!==id;});ss('eb3_archivio',archivio);renderArchivio();}
+
+function esportaTutto(){
+  var dati={eb3_fields:fields,eb3_cond:conditions,eb3_vcond:vconditions,eb3_tags:allTags,eb3_etmpl:eTmpl,eb3_vtmpl:vTmpl,eb3_note:noteSalvate,eb3_archivio:archivio,eb3_lbl_caratt:labelCaratt,eb3_lbl_stato:labelStato,eb3_lbl_dettagli:labelDettagli};
+  var json=JSON.stringify(dati);
+  // Prova download diretto
+  try{
+    var blob=new Blob([json],{type:'application/json'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;
+    a.download='blackdahlia-backup-'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a);a.click();
+    document.body.removeChild(a);URL.revokeObjectURL(url);
+    showSyncMsg('File scaricato! Cercalo nei Download del telefono.','ok');
+  }catch(e){
+    // Fallback: mostra testo da copiare
+    document.getElementById('exportBox').style.display='block';
+    document.getElementById('exportText').value=json;
+    showSyncMsg('Copia il testo e salvalo.','ok');
+  }
+}
+function copiaExport(){var ta=document.getElementById('exportText');ta.select();if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(ta.value).then(function(){showSyncMsg('Copiato!','ok');});}
+function importaDaFile(e){
+  var file=e.target.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(ev){applicaDati(ev.target.result);};
+  reader.readAsText(file,'UTF-8');
+  e.target.value='';
+}
+function applicaDati(txt){
+  try{
+    var dati=JSON.parse(txt);
+    Object.keys(dati).forEach(function(k){localStorage.setItem(k,JSON.stringify(dati[k]));});
+    showSyncMsg('Importato! Ricarico...','ok');
+    setTimeout(function(){location.reload();},1200);
+  }catch(e){showSyncMsg('Testo non valido.','err');}
+}
+function importaDaTesto(){var txt=document.getElementById('importText').value.trim();if(!txt){showSyncMsg('Incolla prima il testo.','err');return;}try{var dati=JSON.parse(txt);Object.keys(dati).forEach(function(k){localStorage.setItem(k,JSON.stringify(dati[k]));});showSyncMsg('Importato! Ricarico...','ok');setTimeout(function(){location.reload();},1200);}catch(e){showSyncMsg('Testo non valido.','err');}}
+function showSyncMsg(txt,tipo){var el=document.getElementById('syncMsg');el.textContent=txt;el.style.display='block';el.style.color=tipo==='ok'?'#4caf50':'#e74c3c';}
+
+function openModal(type,platform){
+  modalType=type;modalPlatform=platform||'e';
+  document.getElementById('modalOverlay').style.display='flex';
+  var title=document.getElementById('modalTitle'),content=document.getElementById('modalContent');
+  if(type==='fields'){
+    title.textContent='Campi del Libro';
+    content.innerHTML='<div id="mList">'+fields.map(function(f,i){return '<div class="modal-item" style="flex-direction:column;align-items:stretch;gap:4px"><div style="display:flex;gap:8px;align-items:center"><input value="'+f.label+'" style="flex:1;background:#0e0e0e;border:1px solid #333;color:#f0e6c8;border-radius:6px;padding:6px 8px;font-size:13px;font-family:Georgia,serif;outline:none;box-sizing:border-box" onchange="fields['+i+'].label=this.value"><button class="del-btn" onclick="mDelField('+i+')">'+(f.required?'*':'X')+'</button></div><label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#666;font-size:11px;text-transform:none;letter-spacing:0;margin:0"><input type="checkbox" '+(f.half?'checked':'')+' onchange="fields['+i+'].half=this.checked"> Meta larghezza</label></div>';}).join('')+'</div><div class="modal-add"><div class="modal-add-title">+ Nuovo campo</div><input class="modal-inp" id="mNewFL" placeholder="Nome campo"><input class="modal-inp" id="mNewFP" placeholder="Placeholder"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#888;font-size:12px;text-transform:none;letter-spacing:0;margin:0"><input type="checkbox" id="mNewFH"> Meta larghezza</label><button class="btn-full" style="margin-top:10px" onclick="mAddField()">+ Aggiungi</button></div><button class="btn-full" onclick="mSaveFields()">Salva</button>';
+  } else if(type==='cond'||type==='vcond'){
+    var conds=type==='cond'?conditions:vconditions;title.textContent=type==='cond'?'Condizioni eBay':'Condizioni Vinted';
+    content.innerHTML='<div id="mList">'+conds.map(function(cd,i){return '<div class="modal-item" style="flex-direction:column;align-items:stretch;gap:6px"><div style="display:flex;gap:8px"><input value="'+cd.v+'" style="flex:1;background:#0e0e0e;border:1px solid #333;color:#f0e6c8;border-radius:6px;padding:6px 8px;font-size:13px;font-family:Georgia,serif;outline:none;box-sizing:border-box"><button class="del-btn" onclick="mDel('+i+')">X</button></div><textarea rows="2" style="background:#0e0e0e;border:1px solid #2a3a2a;color:#c8e8c8;border-radius:6px;padding:8px;font-size:12px;font-family:Georgia,serif;resize:vertical;line-height:1.5;box-sizing:border-box;width:100%" placeholder="Frase nella descrizione...">'+( cd.frase||'')+'</textarea></div>';}).join('')+'</div><div class="modal-add"><div class="modal-add-title">+ Aggiungi</div><input class="modal-inp" id="mNewCL" placeholder="Nome condizione"><textarea class="modal-inp" id="mNewCF" rows="2" placeholder="Frase descrittiva..." style="resize:vertical"></textarea><button class="btn-full" onclick="mAddCond()">+ Aggiungi</button></div><button class="btn-full" onclick="mSaveCond(\''+type+'\')">Salva</button>';
+  } else if(type==='tags'){
+    title.textContent='Caratteristiche & Valore';
+    var tagItems=allTags.filter(function(x){return x.tipo==='tag';}),valItems=allTags.filter(function(x){return x.tipo==='valore';});
+    content.innerHTML='<div style="font-size:11px;color:#888;margin-bottom:8px;text-transform:uppercase;letter-spacing:.8px">Caratteristiche speciali</div><div id="mListTags">'+tagItems.map(function(t){return '<div class="modal-item" data-l="'+t.t+'" data-tipo="tag"><div class="modal-item-text">'+t.t+'</div><button class="del-btn" onclick="this.closest(\'.modal-item\').remove()">X</button></div>';}).join('')+'</div><div style="font-size:11px;color:#c9a84c;margin:12px 0 8px;text-transform:uppercase;letter-spacing:.8px">Chip Valore</div><div id="mListValore">'+valItems.map(function(t){return '<div class="modal-item" data-l="'+t.t+'" data-tipo="valore"><div class="modal-item-text">'+t.t+'</div><button class="del-btn" onclick="this.closest(\'.modal-item\').remove()">X</button></div>';}).join('')+'</div><div class="modal-add"><div class="modal-add-title">+ Aggiungi</div><input class="modal-inp" id="mNewTV" placeholder="Es. COFANETTO"><div style="display:flex;gap:12px;margin-bottom:8px"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#888;font-size:12px;text-transform:none;letter-spacing:0;margin:0"><input type="radio" name="tipoNew" value="tag" checked> Caratteristica</label><label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#c9a84c;font-size:12px;text-transform:none;letter-spacing:0;margin:0"><input type="radio" name="tipoNew" value="valore"> Valore</label></div><button class="btn-full" onclick="mAddTag()">+ Aggiungi</button></div><button class="btn-full" onclick="mSaveTags()">Salva</button>';
+  } else if(type==='addSection'){
+    title.textContent='Nuova Sezione';
+    content.innerHTML='<div class="modal-add" style="margin-bottom:14px"><input class="modal-inp" id="mNewST" placeholder="Titolo sezione (es. GARANZIA)"></div><button class="btn-full" onclick="addSection()">Aggiungi</button>';
+  }
+}
+function closeModal(){document.getElementById('modalOverlay').style.display='none';}
+function closeModalOutside(e){if(e.target===document.getElementById('modalOverlay'))closeModal();}
+function mDel(i){var rows=document.querySelectorAll('#mList .modal-item');if(rows[i])rows[i].remove();}
+function mDelField(i){if(fields[i].required){alert('Campo obbligatorio.');return;}fields.splice(i,1);ss('eb3_fields',fields);openModal('fields');}
+function mAddField(){var l=document.getElementById('mNewFL').value.trim();if(!l)return;fields.push({id:'c'+Date.now(),label:l,placeholder:document.getElementById('mNewFP').value.trim(),required:false,half:document.getElementById('mNewFH').checked});ss('eb3_fields',fields);openModal('fields');}
+function mSaveFields(){ss('eb3_fields',fields);
+function cercaExcel(){
+  var q=document.getElementById('xlsxSearch').value.trim().toLowerCase();
+  var res=document.getElementById('xlsxResults');
+  if(q.length<2){res.innerHTML='';return;}
+  var found=xlsxData.filter(function(r){
+    return (r.t||r.titolo||'').toLowerCase().indexOf(q)>-1||
+           (r.a||r.autore||'').toLowerCase().indexOf(q)>-1||
+           (r.isbn||'').indexOf(q)>-1;
+  }).slice(0,30);
+  if(!found.length){res.innerHTML='<div style="color:#444;font-size:12px;padding:10px">Nessun risultato</div>';return;}
+  res.innerHTML='';
+  found.forEach(function(r){
+    var div=document.createElement('div');
+    div.style.cssText='padding:10px 12px;border-bottom:1px solid #1a1a1a;cursor:pointer';
+    var titolo=r.t||r.titolo||'';
+    var autore=r.a||r.autore||'';
+    var anno=r.y||r.anno||'';
+    var isbn=r.isbn||'';
+    var prezzo=r.p||r.prezzo||'';
+    div.innerHTML='<div style="font-size:13px;font-weight:700;color:#f0e6c8">'+titolo+'</div>'+
+      '<div style="font-size:11px;color:#888;margin-top:2px">'+(autore?autore+' &middot; ':'')+
+      (anno?anno+' &middot; ':'')+( isbn?'ISBN: '+isbn:'')+( prezzo?' &middot; '+prezzo:'')+'</div>';
+    div.onclick=function(){selezionaLibro(r);};
+    div.onmouseover=function(){this.style.background='#1a1a1a';};
+    div.onmouseout=function(){this.style.background='transparent';};
+    res.appendChild(div);
+  });
+}
+function selezionaLibro(idx){
+  var r=xlsxData[idx];if(!r)return;
+  fields.forEach(function(f){
+    var el=document.getElementById('e_'+f.id);if(!el)return;
+    if(f.id==='titolo')el.value=r.titolo||'';
+    else if(f.id==='autore')el.value=r.autore||'';
+    else if(f.id==='anno')el.value=r.anno||'';
+    else if(f.id==='editore')el.value=r.editore||'';
+  });
+  document.getElementById('isbnIn').value=r.isbn||'';
+  document.getElementById('xlsxSearch').value='';
+  document.getElementById('xlsxResults').innerHTML='';
+  document.getElementById('xlsxStatus').textContent='Selezionato: '+r.titolo;
+  document.getElementById('xlsxStatus').style.color='#c9a84c';
+}
+
+renderFields();closeModal();}
+function mAddCond(){var l=document.getElementById('mNewCL').value.trim(),f=document.getElementById('mNewCF').value.trim();if(!l)return;var list=document.getElementById('mList'),div=document.createElement('div');div.className='modal-item';div.style.cssText='flex-direction:column;align-items:stretch;gap:6px';div.innerHTML='<div style="display:flex;gap:8px"><input value="'+l+'" style="flex:1;background:#0e0e0e;border:1px solid #333;color:#f0e6c8;border-radius:6px;padding:6px 8px;font-size:13px;font-family:Georgia,serif;outline:none;box-sizing:border-box"><button class="del-btn" onclick="this.closest(\'.modal-item\').remove()">X</button></div><textarea rows="2" style="background:#0e0e0e;border:1px solid #2a3a2a;color:#c8e8c8;border-radius:6px;padding:8px;font-size:12px;font-family:Georgia,serif;resize:vertical;line-height:1.5;box-sizing:border-box;width:100%">'+f+'</textarea>';list.appendChild(div);document.getElementById('mNewCL').value='';document.getElementById('mNewCF').value='';}
+function mSaveCond(type){var saved=Array.from(document.querySelectorAll('#mList .modal-item')).map(function(r){var inp=r.querySelector('input'),ta=r.querySelector('textarea');return {v:inp?inp.value.trim():'',frase:ta?ta.value.trim():''};});if(type==='cond'){conditions=saved;ss('eb3_cond',conditions);renderCondChips('e');}else{vconditions=saved;ss('eb3_vcond',vconditions);renderCondChips('v');}closeModal();}
+function mAddTag(){var v=document.getElementById('mNewTV').value.trim().toUpperCase();if(!v)return;var tipo=document.querySelector('input[name="tipoNew"]:checked').value,listId=tipo==='valore'?'mListValore':'mListTags',div=document.createElement('div');div.className='modal-item';div.dataset.l=v;div.dataset.tipo=tipo;div.innerHTML='<div class="modal-item-text">'+v+'</div><button class="del-btn" onclick="this.closest(\'.modal-item\').remove()">X</button>';document.getElementById(listId).appendChild(div);document.getElementById('mNewTV').value='';}
+function mSaveTags(){var tags=Array.from(document.querySelectorAll('#mListTags .modal-item')).map(function(r){return {t:r.dataset.l,tipo:'tag'};});var valori=Array.from(document.querySelectorAll('#mListValore .modal-item')).map(function(r){return {t:r.dataset.l,tipo:'valore'};});allTags=[...tags,...valori];ss('eb3_tags',allTags);eTagsSel=eTagsSel.filter(function(t){return allTags.some(function(x){return x.t===t;});});vTagsSel=vTagsSel.filter(function(t){return allTags.some(function(x){return x.t===t;});});renderTagChips('e');renderTagChips('v');closeModal();}
+function addSection(){var t=document.getElementById('mNewST').value.trim().toUpperCase();if(!t){alert('Inserisci un titolo.');return;}if(modalPlatform==='e'){eTmpl.push({id:'ec'+Date.now(),title:t,testo:''});ss('eb3_etmpl',eTmpl);}else{vTmpl.push({id:'vc'+Date.now(),title:t,testo:''});ss('eb3_vtmpl',vTmpl);}closeModal();if(currentTab==='template'){renderETmpl();renderVTmpl();}}
+
+renderFields();
+renderCondChips('e');renderCondChips('v');
+renderTagChips('e');renderTagChips('v');
+renderNoteSalvateChips('e');renderNoteSalvateChips('v');
+loadEtichette();
+document.getElementById('isbnIn').addEventListener('keydown',function(e){if(e.key==='Enter')doISBN('e');});
+document.getElementById('vIsbnIn').addEventListener('keydown',function(e){if(e.key==='Enter')doISBN('v');});
+</script>
+</body>
+</html>

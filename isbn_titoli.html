@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="it">
+<head><script>
+(function(){
+  // Store original setItem to avoid recursive loop
+  var _origSet = Storage.prototype.setItem;
+  
+  // Override setItem to sync to parent
+  Storage.prototype.setItem = function(key, value){
+    _origSet.call(this, key, value);
+    try{ window.parent.postMessage({type:'SYNC', key:key, value:value}, '*'); }catch(e){}
+  };
+
+  // Receive data from parent (use original to avoid loop)
+  window.addEventListener('message', function(e){
+    if(e.data && e.data.type === 'LOAD_KEY'){
+      try{ _origSet.call(localStorage, e.data.key, e.data.value); }catch(ex){}
+    }
+  });
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ISBN → Titoli Libri</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0f0e0c;--surface:#1a1916;--border:#2e2c28;--accent:#c8a96e;--accent2:#7eb8a4;--text:#e8e4dc;--muted:#7a7670;--danger:#e07a5f;--success:#7eb8a4; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:300;min-height:100vh;padding:40px 20px}
+  .grain{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");opacity:0.4}
+  .container{max-width:780px;margin:0 auto;position:relative;z-index:1}
+  header{margin-bottom:48px;border-bottom:1px solid var(--border);padding-bottom:32px}
+  .label{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.2em;color:var(--accent);text-transform:uppercase;margin-bottom:12px}
+  h1{font-family:'DM Serif Display',serif;font-size:clamp(32px,6vw,52px);font-weight:400;line-height:1.1;color:var(--text);margin-bottom:12px}
+  h1 em{font-style:italic;color:var(--accent)}
+  .subtitle{color:var(--muted);font-size:14px;line-height:1.6}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:28px;margin-bottom:20px}
+  .card-title{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+  .step{background:var(--accent);color:#0f0e0c;width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+  .optional-badge{font-family:'DM Mono',monospace;font-size:10px;background:rgba(126,184,164,.15);color:var(--accent2);border:1px solid rgba(126,184,164,.3);border-radius:3px;padding:2px 7px;margin-left:6px}
+  .drop-zone{border:1.5px dashed var(--border);border-radius:4px;padding:32px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:12px;position:relative}
+  .drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:rgba(200,169,110,.04)}
+  .drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+  .drop-icon{font-size:24px;margin-bottom:8px;display:block}
+  .drop-zone p{color:var(--muted);font-size:13px}
+  .drop-zone strong{color:var(--accent);font-weight:500}
+  .file-info{display:none;align-items:center;gap:12px;padding:12px 16px;background:rgba(126,184,164,.08);border:1px solid rgba(126,184,164,.2);border-radius:4px;margin-bottom:12px;font-family:'DM Mono',monospace;font-size:12px}
+  .file-info.visible{display:flex}
+  .file-info .icon{color:var(--success)}
+  .file-info .name{color:var(--text);flex:1}
+  .file-info .count{color:var(--muted)}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:3px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .15s;border:none}
+  .btn-primary{background:var(--accent);color:#0f0e0c;font-weight:500}
+  .btn-primary:hover:not(:disabled){background:#d4b87e;transform:translateY(-1px)}
+  .btn-primary:disabled{opacity:.4;cursor:not-allowed}
+  .btn-secondary{background:transparent;color:var(--accent2);border:1px solid var(--accent2)}
+  .btn-secondary:hover{background:rgba(126,184,164,.08)}
+  .progress-section{display:none}
+  .progress-section.visible{display:block}
+  .progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .progress-label{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)}
+  .progress-count{font-family:'DM Mono',monospace;font-size:12px;color:var(--accent)}
+  .progress-bar-bg{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:20px}
+  .progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;width:0%;transition:width .3s ease}
+  .log{background:#0a0a09;border:1px solid var(--border);border-radius:3px;padding:16px;height:200px;overflow-y:auto;font-family:'DM Mono',monospace;font-size:11px;line-height:1.8}
+  .log-entry{display:flex;gap:12px}
+  .log-entry .ts{color:var(--muted);flex-shrink:0}
+  .log-entry .msg{color:var(--text)}
+  .log-entry .msg.ok{color:var(--success)}
+  .log-entry .msg.err{color:var(--danger)}
+  .log-entry .msg.warn{color:var(--accent)}
+  .stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:20px}
+  .stat{background:#0a0a09;border:1px solid var(--border);border-radius:3px;padding:14px 10px;text-align:center}
+  .stat-value{font-family:'DM Serif Display',serif;font-size:24px;color:var(--accent);display:block}
+  .stat-label{font-size:10px;color:var(--muted);margin-top:4px;font-family:'DM Mono',monospace;letter-spacing:.05em}
+  .actions{display:flex;gap:12px;margin-top:20px;flex-wrap:wrap}
+  .tip{font-size:12px;color:var(--muted);line-height:1.6;padding:12px 16px;border-left:2px solid var(--border);margin-top:16px}
+  .tip strong{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="container">
+
+  <header>
+    <div class="label">Strumento ISBN</div>
+    <h1>Aggiorna la tua<br>lista <em>libri</em></h1>
+    <p class="subtitle">Carica il nuovo CSV di estrazione e il vecchio Excel con i titoli già trovati. L'app riusa i dati esistenti e cerca solo i nuovi ISBN.</p>
+  </header>
+
+  <div class="card">
+    <div class="card-title"><span class="step">1</span> Nuovo file CSV di estrazione</div>
+    <div class="drop-zone" id="dropZone1">
+      <input type="file" id="fileInput1" accept=".csv,.xlsx,.xls">
+      <span class="drop-icon">📄</span>
+      <p><strong>Clicca</strong> o trascina il nuovo CSV di estrazione</p>
+    </div>
+    <div class="file-info" id="fileInfo1">
+      <span class="icon">✓</span>
+      <span class="name" id="fileName1">—</span>
+      <span class="count" id="rowCount1">—</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <span class="step">2</span> Vecchio Excel con titoli già trovati
+      <span class="optional-badge">opzionale</span>
+    </div>
+    <div class="drop-zone" id="dropZone2">
+      <input type="file" id="fileInput2" accept=".xlsx,.xls">
+      <span class="drop-icon">📚</span>
+      <p><strong>Clicca</strong> o trascina <code>isbn_export_completo.xlsx</code> della volta precedente</p>
+      <p style="margin-top:6px;font-size:11px;">I titoli già trovati vengono riutilizzati senza chiamate API</p>
+    </div>
+    <div class="file-info" id="fileInfo2">
+      <span class="icon">✓</span>
+      <span class="name" id="fileName2">—</span>
+      <span class="count" id="rowCount2">—</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="step">3</span> Avvia elaborazione</div>
+    <button class="btn btn-primary" id="startBtn" disabled onclick="startFetch()">▶ Avvia ricerca titoli</button>
+    <p class="tip"><strong>Come funziona:</strong> Per ogni ISBN del nuovo CSV controlla prima la cache del vecchio Excel. Se c'è già il titolo lo riusa istantaneamente. Solo per gli ISBN nuovi o mancanti fa le chiamate API (Open Library + Google Books).</p>
+  </div>
+
+  <div class="card progress-section" id="progressSection">
+    <div class="progress-header">
+      <span class="progress-label" id="progressLabel">Elaborazione in corso…</span>
+      <span class="progress-count" id="progressCount">0 / 0</span>
+    </div>
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressBar"></div></div>
+    <div class="log" id="log"></div>
+    <div class="stats-grid">
+      <div class="stat"><span class="stat-value" id="statTotal">0</span><span class="stat-label">Totale</span></div>
+      <div class="stat"><span class="stat-value" id="statReused">0</span><span class="stat-label">Da cache</span></div>
+      <div class="stat"><span class="stat-value" id="statNew">0</span><span class="stat-label">Nuovi trovati</span></div>
+      <div class="stat"><span class="stat-value" id="statNotFound">0</span><span class="stat-label">Non trovati</span></div>
+      <div class="stat"><span class="stat-value" id="statPct">0%</span><span class="stat-label">Completati</span></div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-secondary" id="downloadBtn" style="display:none" onclick="downloadFile()">⬇ Scarica Excel aggiornato</button>
+      <button class="btn btn-secondary" id="stopBtn" onclick="stopFetch()">⏹ Interrompi</button>
+    </div>
+  </div>
+
+</div>
+<script>
+const API_KEY = 'AIzaSyB7SEHDl1wjOBO6uNZ8OYj0EZaRkTw9O9I';
+let allRows = [], oldCache = {};
+let isRunning = false, shouldStop = false;
+let reusedCount = 0, newFoundCount = 0, notFoundCount = 0;
+
+const $ = id => document.getElementById(id);
+
+function setupDrop(zoneId, inputId, onFile) {
+  const zone = $(zoneId), input = $(inputId);
+  input.addEventListener('change', e => onFile(e.target.files[0]));
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); onFile(e.dataTransfer.files[0]); });
+}
+
+setupDrop('dropZone1', 'fileInput1', loadNewCSV);
+setupDrop('dropZone2', 'fileInput2', loadOldExcel);
+
+function parseCSVLine(line) {
+  const result = []; let cur = '', inQ = false;
+  for (const ch of line) {
+    if (ch === '"') inQ = !inQ;
+    else if (ch === ',' && !inQ) { result.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  result.push(cur);
+  return result;
+}
+
+function mapCondition(s) {
+  if (!s) return '';
+  const ids = new Set(s.split('|'));
+  const c = [];
+  if (ids.has('2')) c.push('ottimo');
+  if (ids.has('1') || ids.has('6')) c.push('nuovo');
+  if (ids.has('3')) c.push('buono');
+  if (ids.has('4')) c.push('discreto');
+  return c.join(', ');
+}
+
+function loadNewCSV(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    let rows = [];
+    // Usa SheetJS per leggere sia CSV che Excel — gestisce correttamente virgole nei campi
+    const wb = XLSX.read(e.target.result, { type: 'array', raw: false });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    const headers = (data[0] || []).map(h => String(h).trim());
+    const iEnabled = headers.indexOf('enabled');
+    const iIsbn = headers.indexOf('isbn_terms');
+    const iPrice = headers.indexOf('price_max_cents');
+    const iStatus = headers.indexOf('status_ids');
+
+    for (let i = 1; i < data.length; i++) {
+      const cols = data[i];
+      if (!cols || cols.length < 2) continue;
+      const enabled = String(cols[iEnabled] || '').trim();
+      const isbnTerms = String(cols[iIsbn] || '').trim();
+      const priceCents = String(cols[iPrice] || '').trim();
+      const statusIds = String(cols[iStatus] || '').trim();
+      if (enabled.toUpperCase() !== 'TRUE' || !isbnTerms || !priceCents) continue;
+      const price = parseFloat(priceCents) / 100;
+      const condition = mapCondition(statusIds);
+      isbnTerms.split('|').forEach(isbn => {
+        isbn = isbn.trim();
+        if (isbn) rows.push([isbn, price, condition, '', '', '', '']);
+      });
+    }
+    // Rimuovi duplicati e senza prezzo
+    const seen = new Set();
+    rows = rows.filter(r => { if (!r[1] || seen.has(r[0])) return false; seen.add(r[0]); return true; });
+    allRows = rows;
+    $('fileName1').textContent = file.name;
+    $('rowCount1').textContent = `${rows.length} ISBN`;
+    $('fileInfo1').classList.add('visible');
+    checkReady();
+    log(`Caricato: ${rows.length} ISBN validi`, 'warn');
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function loadOldExcel(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    oldCache = {};
+    let count = 0;
+    data.slice(1).forEach(row => {
+      const isbn = String(row[0] || '').trim();
+      const title = String(row[3] || '').trim();
+      if (isbn && title && title !== 'Non trovato') {
+        oldCache[isbn] = { title, author: String(row[4]||'').trim(), edition: String(row[5]||'').trim(), year: String(row[6]||'').trim() };
+        count++;
+      }
+    });
+    $('fileName2').textContent = file.name;
+    $('rowCount2').textContent = `${count} titoli in cache`;
+    $('fileInfo2').classList.add('visible');
+    log(`Cache caricata: ${count} titoli riutilizzabili`, 'warn');
+    checkReady();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function checkReady() { $('startBtn').disabled = allRows.length === 0; }
+
+function log(msg, type='') {
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  const now = new Date();
+  const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  div.innerHTML = `<span class="ts">${ts}</span><span class="msg ${type}">${msg}</span>`;
+  $('log').appendChild(div);
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+async function fetchOpenLibrary(isbn) {
+  try {
+    const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
+    const data = await res.json();
+    const b = data[`ISBN:${isbn}`];
+    if (b?.title) {
+      const author = (b.authors||[]).map(a=>a.name).filter(Boolean).join(', ');
+      const edition = b.edition_name || b.edition || '';
+      let year = '';
+      if (b.publish_date) { const m = b.publish_date.match(/\b(1[89]\d{2}|20\d{2})\b/); year = m?m[0]:b.publish_date; }
+      return { title: b.title, author, edition, year, source: 'OpenLibrary' };
+    }
+  } catch(e) {}
+  return null;
+}
+
+async function fetchGoogleBooks(isbn) {
+  try {
+    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&key=${API_KEY}`);
+    const data = await res.json();
+    if (data.totalItems > 0 && data.items?.[0]) {
+      const info = data.items[0].volumeInfo;
+      if (info.title) return { title: info.title, author: (info.authors||[]).join(', '), edition: '', year: info.publishedDate?info.publishedDate.substring(0,4):'', source: 'GoogleBooks' };
+    }
+  } catch(e) {}
+  return null;
+}
+
+async function fetchSBN(isbn) {
+  try {
+    const res = await fetch(`https://opac.sbn.it/opacmobilegw/search.json?isbn=${isbn}`);
+    const data = await res.json();
+    const records = data?.response?.docs || data?.docs || (Array.isArray(data) ? data : null);
+    const item = Array.isArray(records) ? records[0] : null;
+    if (item) {
+      const title = (item.titolo || '').replace(/\s*\/.*$/, '').trim();
+      const author = item.autorePrincipale || '';
+      const pub = item.pubblicazione || '';
+      const yearMatch = pub.match(/\b(1[89]\d{2}|20\d{2})\b/);
+      const year = yearMatch ? yearMatch[0] : '';
+      if (title) return { title, author, edition: '', year, source: 'SBN' };
+    }
+  } catch(e) {}
+  return null;
+}
+
+async function fetchBest(isbn) {
+  let result = await fetchSBN(isbn);
+  if (!result) result = await fetchOpenLibrary(isbn);
+  if (!result || !result.author) {
+    const r2 = await fetchGoogleBooks(isbn);
+    if (r2) result = result ? { ...result, author: r2.author||result.author, year: result.year||r2.year } : r2;
+  }
+  return result;
+}
+
+async function startFetch() {
+  if (isRunning || !allRows.length) return;
+  isRunning = true; shouldStop = false;
+  reusedCount = 0; newFoundCount = 0; notFoundCount = 0;
+  $('progressSection').classList.add('visible');
+  $('startBtn').disabled = true;
+  $('downloadBtn').style.display = 'none';
+  $('stopBtn').style.display = 'inline-flex';
+  $('statTotal').textContent = allRows.length;
+  $('log').innerHTML = '';
+  log(`Avvio: ${allRows.length} ISBN — ${Object.keys(oldCache).length} in cache`, 'warn');
+
+  for (let i = 0; i < allRows.length; i++) {
+    if (shouldStop) { log('Interrotto.', 'warn'); break; }
+    const row = allRows[i];
+    const isbn = String(row[0]).trim();
+    const pct = Math.round(((i+1)/allRows.length)*100);
+    $('progressBar').style.width = pct+'%';
+    $('progressCount').textContent = `${i+1} / ${allRows.length}`;
+    $('statPct').textContent = pct+'%';
+
+    if (oldCache[isbn]) {
+      const c = oldCache[isbn];
+      row[3]=c.title; row[4]=c.author; row[5]=c.edition; row[6]=c.year;
+      reusedCount++;
+      $('statReused').textContent = reusedCount;
+      log(`[${isbn}] ↩ cache: ${c.title}${c.author?' — '+c.author:''}`, 'ok');
+      continue;
+    }
+
+    const result = await fetchBest(isbn);
+    if (result) {
+      row[3]=result.title; row[4]=result.author||''; row[5]=result.edition||''; row[6]=result.year||'';
+      newFoundCount++;
+      $('statNew').textContent = newFoundCount;
+      log(`[${isbn}] ✓ ${result.title}${result.author?' — '+result.author:''} (${result.source})`, 'ok');
+    } else {
+      row[3]='Non trovato'; row[4]=''; row[5]=''; row[6]='';
+      notFoundCount++;
+      $('statNotFound').textContent = notFoundCount;
+      log(`[${isbn}] ✗ non trovato`, 'err');
+    }
+    await new Promise(r => setTimeout(r, 350));
+  }
+
+  isRunning = false;
+  $('progressLabel').textContent = 'Completato!';
+  $('downloadBtn').style.display = 'inline-flex';
+  $('stopBtn').style.display = 'none';
+  log(`Fine — Cache: ${reusedCount} | Nuovi: ${newFoundCount} | Non trovati: ${notFoundCount}`, 'warn');
+}
+
+function stopFetch() { shouldStop = true; }
+
+function downloadFile() {
+  // Nuova struttura colonne:
+  // A=ISBN, B=Google, C=Prezzo, D=Condizione, E=Vinted, F=eBay Venduti, G=eBay Attivi
+  // H=Titolo, I=Autore, J=Editore, K=Edizione, L=Anno
+  const headers = [
+    'ISBN','🔍 Google','Prezzo (€)','Condizione',
+    '🛍 Vinted','🛒 eBay Venduti','🛒 eBay Attivi',
+    'Titolo','Autore','Editore','Edizione','Anno pubblicazione'
+  ];
+
+  // allRows: [isbn, prezzo, condizione, titolo, autore, edizione, anno]
+  // indici:   [0]    [1]     [2]         [3]     [4]     [5]       [6]
+  const wsData = [headers];
+
+  allRows.forEach((row, i) => {
+    const excelRow = i + 2; // riga Excel (1=header)
+    const isbn = row[0] || '';
+    const isbnEnc = encodeURIComponent(isbn);
+    const prezzo = row[1] || '';
+    const condizione = row[2] || '';
+    const titolo = row[3] || '';
+    const autore = row[4] || '';
+    const editore = row[10] || ''; // colonna J se già presente in cache
+    const edizione = row[5] || '';
+    const anno = row[6] || '';
+
+    wsData.push([
+      isbn,
+      { f: `HYPERLINK("https://www.google.com/search?q="&A${excelRow},"🔍 Cerca")` },
+      prezzo,
+      condizione,
+      { f: `HYPERLINK("https://www.vinted.it/catalog?search_text=${isbnEnc}","🛍 Vinted")` },
+      { f: `HYPERLINK("https://www.ebay.it/sch/i.html?_nkw="&ENCODEURL(H${excelRow})&"&LH_Sold=1&LH_Complete=1&_sacat=267&LH_PrefLoc=1","🛒 Venduti")` },
+      { f: `HYPERLINK("https://www.ebay.it/sch/i.html?_nkw="&ENCODEURL(H${excelRow})&"&_sacat=267&LH_PrefLoc=1","🛒 Attivi")` },
+      titolo,
+      autore,
+      editore,
+      edizione,
+      anno
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [
+    {wch:18},{wch:12},{wch:12},{wch:28},
+    {wch:12},{wch:16},{wch:16},
+    {wch:50},{wch:28},{wch:22},{wch:15},{wch:8}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'ISBN');
+  XLSX.writeFile(wb, 'isbn_export_completo.xlsx');
+  log('File scaricato con nuova struttura colonne!', 'ok');
+}
+</script>
+</body>
+</html>

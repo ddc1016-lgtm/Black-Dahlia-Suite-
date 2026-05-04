@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="it">
+<head><script>
+(function(){
+  // Store original setItem to avoid recursive loop
+  var _origSet = Storage.prototype.setItem;
+  
+  // Override setItem to sync to parent
+  Storage.prototype.setItem = function(key, value){
+    _origSet.call(this, key, value);
+    try{ window.parent.postMessage({type:'SYNC', key:key, value:value}, '*'); }catch(e){}
+  };
+
+  // Receive data from parent (use original to avoid loop)
+  window.addEventListener('message', function(e){
+    if(e.data && e.data.type === 'LOAD_KEY'){
+      try{ _origSet.call(localStorage, e.data.key, e.data.value); }catch(ex){}
+    }
+  });
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>eBay Title Builder</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0a;color:#f0e6c8;font-family:Georgia,serif;min-height:100vh;padding-bottom:60px}
+header{background:linear-gradient(160deg,#0f0c00,#0a0a0a 60%,#0c0800);border-bottom:1px solid #1e1800;padding:24px 18px 16px;text-align:center}
+header .tag{font-size:10px;color:#c9a84c;letter-spacing:4px;text-transform:uppercase;margin-bottom:6px}
+header h1{font-size:24px;font-weight:900}
+header h1 span{color:#c9a84c}
+header p{margin-top:6px;color:#555;font-size:12px}
+.wrap{padding:16px}
+.card{background:#0f0f0f;border:1px solid #1e1e1e;border-radius:14px;padding:18px;margin-bottom:14px}
+.card.gold{border-color:#1e1800}
+.card.green{border-color:#1e3010}
+.sec{font-size:10px;color:#c9a84c;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px}
+label{font-size:11px;color:#666;letter-spacing:.9px;text-transform:uppercase;display:block;margin:12px 0 4px}
+label:first-of-type{margin-top:0}
+input,select{width:100%;background:#0e0e0e;border:1px solid #2a2a2a;color:#f0e6c8;border-radius:8px;padding:10px 12px;font-size:14px;font-family:Georgia,serif;outline:none;box-sizing:border-box}
+input:focus{border-color:#c9a84c55}
+.isbn-row{display:flex;gap:8px}
+.isbn-row input{flex:1;font-size:18px;letter-spacing:2px;text-align:center}
+.btn-full{width:100%;padding:14px;font-size:15px;margin-top:12px;background:linear-gradient(135deg,#c9a84c,#a07820);color:#000;border:none;border-radius:10px;font-weight:900;cursor:pointer;font-family:Georgia,serif}
+.btn-full:disabled{background:#1a1a1a!important;color:#444!important;cursor:not-allowed}
+.btn-gold{background:linear-gradient(135deg,#c9a84c,#a07820);color:#000;padding:10px 18px;font-size:14px;border:none;border-radius:8px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:Georgia,serif}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{padding:7px 12px;border-radius:8px;border:1px solid #222;font-size:12px;font-weight:700;cursor:pointer;background:#1a1a1a;color:#777;font-family:Georgia,serif;transition:all .2s}
+.chip.on{background:#c9a84c;color:#000;border-color:#c9a84c}
+.chip-tag{border-radius:20px;padding:6px 11px;font-size:11px}
+.chip-tag.on{background:#1e3a10;color:#4caf50;border-color:#2a5a1a}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tbox{background:#141414;border:1px solid #2a2a2a;border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.tbadge{font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;border-radius:20px;padding:2px 9px;display:inline-block;margin-bottom:8px}
+.ttext{font-family:'Courier New',monospace;font-size:14px;color:#f0e6c8;line-height:1.55;word-break:break-word;margin-top:4px}
+.char-row{display:flex;justify-content:space-between;font-size:10px;color:#666;margin-top:6px;margin-bottom:3px}
+.bar-bg{height:5px;background:#222;border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px}
+.copy-btn{margin-top:10px;width:100%;padding:8px;border-radius:7px;border:none;background:#1e1e1e;color:#999;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif;transition:all .2s}
+.copy-btn.ok{background:#27ae60;color:#fff}
+.why{font-size:11px;color:#555;font-style:italic;padding-left:4px;margin-bottom:12px}
+.msg{font-size:12px;margin-top:6px}
+.msg.ok{color:#4caf50}
+.msg.err{color:#e74c3c}
+.status-box{font-size:11px;color:#888;background:#111;border-radius:6px;padding:8px 10px;margin-top:6px;display:none}
+.book-row{display:flex;gap:14px;align-items:flex-start}
+.book-row img{width:64px;border-radius:6px;border:1px solid #2a2a2a;flex-shrink:0}
+.book-meta{font-size:12px;color:#aaa;line-height:1.8;margin-top:4px}
+footer{text-align:center;color:#2a2a2a;font-size:11px;margin-top:20px}
+</style>
+</head>
+<body>
+<header>
+  <div class="tag">📚 eBay Tool per Libri Rari</div>
+  <h1>Title Builder <span>ISBN</span></h1>
+  <p>ISBN → Google Books → Titolo ottimizzato Cassini</p>
+</header>
+<div class="wrap">
+
+<!-- ISBN -->
+<div class="card gold">
+  <div class="sec">🔍 Cerca per ISBN</div>
+  <div class="isbn-row">
+    <input type="tel" id="isbnIn" placeholder="9788804123456" maxlength="17" inputmode="numeric">
+    <button class="btn-gold" id="isbnBtn" onclick="doISBN()">Cerca</button>
+  </div>
+  <div id="isbnMsg" class="msg"></div>
+  <div id="statusBox" class="status-box"></div>
+  <div style="font-size:11px;color:#333;margin-top:8px;line-height:1.7">
+    ISBN-10 o ISBN-13 · con o senza trattini<br>
+    <span style="color:#444">Se non trovato: compila i campi manualmente</span>
+  </div>
+</div>
+
+<!-- Book card -->
+<div class="card green" id="bookCard" style="display:none">
+  <div class="book-row">
+    <img id="bookCover" src="" alt="" style="display:none">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:10px;color:#4caf50;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px" id="bookFonte"></div>
+      <div style="font-size:15px;font-weight:900;line-height:1.3;margin-bottom:3px" id="bookTitle"></div>
+      <div class="book-meta" id="bookMeta"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Form -->
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="sec" style="margin:0">✏️ Dati Inserzione</div>
+    <button onclick="openEditCampi()" style="font-size:11px;color:#c9a84c;background:#1a1400;border:1px solid #2a2000;border-radius:20px;padding:3px 10px;cursor:pointer;font-family:Georgia,serif">✏️ Campi</button>
+  </div>
+  <div id="campiArea"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;margin-bottom:4px">
+    <label style="margin:0">Condizione</label>
+    <button onclick="openEditCond()" style="font-size:11px;color:#c9a84c;background:#1a1400;border:1px solid #2a2000;border-radius:20px;padding:3px 10px;cursor:pointer;font-family:Georgia,serif">✏️ Personalizza</button>
+  </div>
+  <div class="chips" id="condChips">
+    <button class="chip" data-v="Nuovo" data-tag="NUOVO" onclick="pickCond(this)">Nuovo</button>
+    <button class="chip" data-v="Come nuovo" data-tag="OTTIMO STATO" onclick="pickCond(this)">Come nuovo</button>
+    <button class="chip" data-v="Ottime condizioni" data-tag="OTTIME CONDIZIONI" onclick="pickCond(this)">Ottime condizioni</button>
+    <button class="chip on" data-v="Buone condizioni" data-tag="" onclick="pickCond(this)">Buone condizioni</button>
+    <button class="chip" data-v="Condizioni accettabili" data-tag="LEGGERE USURE" onclick="pickCond(this)">Condizioni accettabili</button>
+    <button class="chip" data-v="Da restauro" data-tag="DA RESTAURO" onclick="pickCond(this)">Da restauro</button>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;margin-bottom:4px">
+    <label style="margin:0">Tag speciali</label>
+    <button onclick="openEditTags()" style="font-size:11px;color:#c9a84c;background:#1a1400;border:1px solid #2a2000;border-radius:20px;padding:3px 10px;cursor:pointer;font-family:Georgia,serif">✏️ Personalizza</button>
+  </div>
+  <div class="chips" id="tagChips">
+    <button class="chip chip-tag" onclick="toggleTag(this)">PRIMA EDIZIONE</button>
+    <button class="chip chip-tag" onclick="toggleTag(this)">RARO</button>
+    <button class="chip chip-tag" onclick="toggleTag(this)">FUORI CATALOGO</button>
+    <button class="chip chip-tag" onclick="toggleTag(this)">OUT OF PRINT</button>
+    <button class="chip chip-tag" onclick="toggleTag(this)">AUTOGRAFATO</button>
+    <button class="chip chip-tag" onclick="toggleTag(this)">ILLUSTRATO</button>
+    <button class="chip chip-tag" onclick="toggleTag(this)">COFANETTO</button>
+    <button class="chip chip-tag" onclick="toggleTag(this)">NUMERATO</button>
+    <button class="chip chip-tag" onclick="toggleTag(this)">CON SOVRACCOPERTA</button>
+    <button class="chip chip-tag" onclick="toggleTag(this)">COPERTINA RIGIDA</button>
+    <button class="chip chip-tag" onclick="toggleTag(this)">BROSSURA</button>
+    <button class="chip chip-tag" onclick="toggleTag(this)">DEDICA AUTORE</button>
+    <button class="chip chip-tag" onclick="toggleTag(this)">TIRATURA LIMITATA</button>
+  </div>
+
+  <label>🌍 Mercato eBay</label>
+  <div class="chips" id="mktChips">
+    <button class="chip on" data-v="it" data-l="italiano" onclick="pickMkt(this)">eBay.it 🇮🇹</button>
+    <button class="chip" data-v="de" data-l="tedesco" onclick="pickMkt(this)">eBay.de 🇩🇪</button>
+    <button class="chip" data-v="fr" data-l="francese" onclick="pickMkt(this)">eBay.fr 🇫🇷</button>
+    <button class="chip" data-v="co.uk" data-l="inglese" onclick="pickMkt(this)">eBay.co.uk 🇬🇧</button>
+    <button class="chip" data-v="com" data-l="inglese" onclick="pickMkt(this)">eBay.com 🌎</button>
+  </div>
+
+  <label>Note extra</label>
+  <input type="text" id="fExtra" placeholder="es. illustrato, con mappa, tiratura limitata…">
+
+  <button class="btn-full" id="genBtn" onclick="generate()">&#10024; Genera Titoli eBay</button>
+<button id="aiBtnGen" onclick="generaAI()" style="width:100%;padding:13px;font-size:14px;margin-top:8px;background:linear-gradient(135deg,#1a3a5a,#0d2a4a);color:#7eb8f7;border:none;border-radius:10px;font-weight:900;cursor:pointer;font-family:Georgia,serif">&#129302; Genera con AI Claude</button>
+</div>
+
+<!-- Results -->
+<div id="results" style="display:none">
+  <div class="sec" style="margin-bottom:12px">🏆 Titoli Generati</div>
+  <div id="t1wrap"></div>
+  <div id="t2wrap"></div>
+  <div id="t3wrap"></div>
+</div>
+
+<div class="card" style="border-color:#1a1a2a;background:#09090f;margin-top:4px">
+  <div class="sec" style="color:#7eb8f7;margin-bottom:8px">&#129302; AI Claude (opzionale)</div>
+  <div style="font-size:11px;color:#444;margin-bottom:10px;line-height:1.7">Inserisci la tua API key Anthropic per titoli ottimizzati AI.<br><span style="color:#333">console.anthropic.com &rarr; API Keys</span></div>
+  <input type="password" id="claudeKey" placeholder="sk-ant-..." style="border-color:#1a2a3a;font-family:monospace;font-size:13px">
+  <button onclick="salvaKey()" style="width:100%;margin-top:8px;padding:10px;border-radius:8px;border:none;background:#1a2a3a;color:#7eb8f7;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">&#128190; Salva Key</button>
+  <div id="keyMsg" style="font-size:11px;margin-top:6px;display:none"></div>
+</div>
+<div id="aiResultWrap" style="display:none">
+  <div class="card" style="border-color:#1a2a3a;background:#09090f">
+    <div class="sec" style="color:#7eb8f7;margin-bottom:12px">&#129302; Titoli AI Ottimizzati</div>
+    <div id="aiResults"></div>
+  </div>
+</div>
+<footer>Google Books · Regole Cassini eBay · Claude AI</footer>
+</div>
+
+<script>
+const S = { cond:'Buone condizioni', condTag:'', market:'it', lang:'italiano', tags:[] };
+
+function pickCond(b){
+  document.querySelectorAll('#condChips .chip').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); S.cond=b.dataset.v; S.condTag=b.dataset.tag||'';
+}
+function pickMkt(b){
+  document.querySelectorAll('#mktChips .chip').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); S.market=b.dataset.v; S.lang=b.dataset.l;
+}
+function toggleTag(b){
+  b.classList.toggle('on');
+  const t=b.textContent.replace('✓ ','').trim();
+  S.tags=b.classList.contains('on')?[...S.tags,t]:S.tags.filter(x=>x!==t);
+  b.textContent=b.classList.contains('on')?'✓ '+t:t;
+}
+
+// ── ISBN Google Books ───────────────────────────────────────────────────────
+async function doISBN(){
+  const raw=document.getElementById('isbnIn').value.replace(/[-\s]/g,'');
+  const msg=document.getElementById('isbnMsg');
+  const status=document.getElementById('statusBox');
+  if(raw.length!==10&&raw.length!==13){msg.textContent='ISBN deve essere di 10 o 13 cifre.';msg.className='msg err';return;}
+  msg.textContent=''; status.textContent='🔍 Cerco su Google Books…'; status.style.display='block';
+  document.getElementById('bookCard').style.display='none';
+  document.getElementById('results').style.display='none';
+  const btn=document.getElementById('isbnBtn'); btn.textContent='⏳'; btn.disabled=true;
+  let data=null;
+  try{
+    const r=await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${raw}&key=AIzaSyB7SEHDl1wjOBO6uNZ8OYj0EZaRkTw9O9I`);
+    const d=await r.json();
+    if(d.totalItems&&d.items?.length){
+      const v=d.items[0].volumeInfo;
+      data={
+        titolo:v.title||'',sottotitolo:v.subtitle||'',
+        autore:(v.authors||[]).join(', '),
+        anno:(v.publishedDate||'').slice(0,4),
+        editore:v.publisher||'',
+        pagine:v.pageCount?String(v.pageCount):'',
+        lingua:v.language||'',
+        genere:(v.categories||[]).join(', '),
+        cover:v.imageLinks?.thumbnail?.replace('http://','https://')||null,
+        fonte:'Google Books'
+      };
+    }
+  }catch(e){}
+  if(!data?.titolo){
+    // fallback Open Library
+    status.textContent='Google Books: non trovato → provo Open Library…';
+    try{
+      const r=await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${raw}&format=json&jscmd=data`);
+      const d=await r.json(); const b=d[`ISBN:${raw}`];
+      if(b) data={
+        titolo:(b.title||'').trim(),sottotitolo:b.subtitle||'',
+        autore:(b.authors||[]).map(a=>a.name).join(', '),
+        anno:b.publish_date?b.publish_date.replace(/\D/g,'').slice(0,4):'',
+        editore:(b.publishers||[]).map(p=>p.name).join(', '),
+        pagine:b.number_of_pages?String(b.number_of_pages):'',
+        lingua:'',genere:'',
+        cover:b.cover?.medium||null,fonte:'Open Library'
+      };
+    }catch(e){}
+  }
+  if(!data?.titolo){
+    msg.textContent='Libro non trovato. Compila manualmente.'; msg.className='msg err';
+    status.style.display='none';
+  } else {
+    campi.forEach(function(f){
+      var el=document.getElementById(f.id);if(!el)return;
+      if(f.id==='fTitolo') el.value=data.titolo||'';
+      else if(f.id==='fAutore') el.value=data.autore||'';
+      else if(f.id==='fAnno') el.value=data.anno||'';
+      else if(f.id==='fEditore') el.value=data.editore||'';
+    });
+    if(data.genere) document.getElementById('fExtra')&&(document.getElementById('fExtra').value=data.genere);
+    document.getElementById('bookFonte').textContent='✅ '+data.fonte;
+    document.getElementById('bookTitle') && (document.getElementById('bookTitle').textContent=data.titolo);
+    let meta='';
+    if(data.autore)  meta+=`✍️ ${data.autore}\n`;
+    if(data.editore) meta+=`🏛️ ${data.editore}${data.anno?', '+data.anno:''}\n`;
+    if(data.pagine)  meta+=`📄 ${data.pagine} pag${data.lingua?' · '+data.lingua:''}`;
+    const m=document.getElementById('bookMeta'); m.style.whiteSpace='pre-line'; m.textContent=meta;
+    if(data.cover){const img=document.getElementById('bookCover');img.src=data.cover;img.style.display='block';}
+    document.getElementById('bookCard').style.display='block';
+    msg.textContent='✅ Trovato su '+data.fonte; msg.className='msg ok';
+    status.style.display='none';
+  }
+  btn.textContent='Cerca'; btn.disabled=false;
+}
+
+// ── Generatore titoli con regole Cassini ────────────────────────────────────
+function buildTitles(){
+  const titolo  = document.getElementById('fTitolo').value.trim();
+  const autore  = document.getElementById('fAutore').value.trim();
+  const anno    = document.getElementById('fAnno').value.trim();
+  const editore = document.getElementById('fEditore').value.trim();
+  const extra   = document.getElementById('fExtra')?document.getElementById('fExtra').value.trim():'';
+  // Campi extra personalizzati
+  const extraCampi=campi.filter(f=>!['fTitolo','fAutore','fAnno','fEditore'].includes(f.id)).map(function(f){var el=document.getElementById(f.id);return el&&el.value.trim()?f.label+': '+el.value.trim():'';}).filter(Boolean).join(', ');
+
+  // Cognome autore
+  const cognome = autore ? autore.split(' ').pop().toUpperCase() : '';
+  // Tags selezionati
+  const tags = [...S.tags];
+  const condTag = S.condTag;
+  const isIT = S.lang === 'italiano';
+  const isFR = S.lang === 'francese';
+  const isDE = S.lang === 'tedesco';
+
+  // Traduzioni etichette per mercato
+  const LBL = {
+    libro:   isIT?'LIBRO':isFR?'LIVRE':isDE?'BUCH':'BOOK',
+    raro:    isIT?'RARO':isFR?'RARE':isDE?'SELTEN':'RARE',
+    fuori:   isIT?'FUORI CATALOGO':isFR?'ÉPUISÉ':isDE?'VERGRIFFEN':'OUT OF PRINT',
+    prima:   isIT?'PRIMA EDIZIONE':isFR?'PREMIÈRE ÉDITION':isDE?'ERSTAUSGABE':'FIRST EDITION',
+    illus:   isIT?'ILLUSTRATO':isFR?'ILLUSTRÉ':isDE?'ILLUSTRIERT':'ILLUSTRATED',
+    auto:    isIT?'AUTOGRAFATO':isFR?'DÉDICACÉ':isDE?'SIGNIERT':'SIGNED',
+  };
+
+  // Funzione assemblaggio titolo rispettando 80 char
+  function build(...parts){
+    let result='';
+    for(const p of parts){
+      if(!p) continue;
+      const candidate = result ? result+' '+p : p;
+      if(candidate.length<=80) result=candidate;
+    }
+    return result;
+  }
+
+  const titoloUP = titolo.toUpperCase();
+  const primaTag = tags.find(t=>t.includes('PRIMA EDIZIONE'))?LBL.prima:null;
+  const raroTag  = tags.find(t=>t==='RARO')?LBL.raro:null;
+  const fuoriTag = tags.find(t=>t.includes('FUORI')||t.includes('OUT OF'))?LBL.fuori:null;
+  const illusTag = tags.find(t=>t.includes('ILLUSTRAT'))?LBL.illus:null;
+  const autoTag  = tags.find(t=>t.includes('AUTOGRAF')||t.includes('SIGNED')||t.includes('DÉDICAC')||t.includes('SIGNIERT'))?LBL.auto:null;
+  const altriTag = tags.filter(t=>!['PRIMA EDIZIONE','RARO','FUORI CATALOGO','OUT OF PRINT','AUTOGRAFATO','ILLUSTRATO'].some(x=>t.includes(x)));
+
+  // Titolo 1: keyword valore + titolo + autore + anno
+  const t1 = build(
+    primaTag||raroTag||fuoriTag||autoTag||illusTag,
+    titoloUP,
+    cognome||'',
+    anno||'',
+    condTag||''
+  );
+
+  // Titolo 2: titolo + autore + editore + tag
+  const t2 = build(
+    titoloUP,
+    cognome||'',
+    editore?editore.toUpperCase():'',
+    anno||'',
+    raroTag||fuoriTag||primaTag||'',
+    condTag||''
+  );
+
+  // Titolo 3: mix creativo con extra
+  const extraUp = extra ? extra.toUpperCase().split(',')[0].trim() : '';
+  const t3 = build(
+    titoloUP,
+    primaTag||raroTag||'',
+    cognome||'',
+    editore?editore.toUpperCase():'',
+    extraUp||anno||'',
+    altriTag[0]||condTag||''
+  );
+
+  return [
+    { text:t1, badge:'⭐ Consigliato', bg:'#c9a84c', col:'#000',
+      why:'Keyword di valore in prima posizione — massima visibilità Cassini' },
+    { text:t2, badge:'🔵 Alternativa', bg:'#1e3a6a', col:'#7eb8f7',
+      why:'Titolo + autore + editore — ottimo per ricerche specifiche' },
+    { text:t3, badge:'🟣 Creativo',    bg:'#2a1040', col:'#c87fd4',
+      why:'Mix con caratteristiche extra — cattura ricerche di nicchia' },
+  ].filter(t=>t.text.length>0);
+}
+
+function charColor(n){return n>80?'#e74c3c':n>70?'#27ae60':n>50?'#f39c12':'#3498db'}
+function charLabel(n){return n>80?'⚠️ TROPPO LUNGO':n>=60?'✅ ottimale':n>=40?'〰️ buono':'📏 corto'}
+
+function makeTitleBox(text, badge, bg, col, why, wrapId){
+  const n=text.length, c=charColor(n), pct=Math.min(n/80*100,100);
+  const uid='cb'+Math.random().toString(36).slice(2);
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const ea=s=>s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  document.getElementById(wrapId).innerHTML=`
+    <div class="tbox">
+      <span class="tbadge" style="background:${bg};color:${col}">${badge}</span>
+      <div class="ttext">${esc(text)}</div>
+      <div class="char-row">
+        <span>caratteri</span>
+        <span style="color:${c};font-weight:700">${n}/80 ${charLabel(n)}</span>
+      </div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${c}"></div></div>
+      <button class="copy-btn" id="${uid}" onclick="copyT('${uid}','${ea(text)}')">📋 Copia titolo</button>
+    </div>
+    <div class="why">${esc(why)}</div>`;
+}
+
+function fbCopy(txt,cb){var ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');if(cb)cb();}catch(e){}document.body.removeChild(ta);}
+
+function copyT(id,txt){
+  var b=document.getElementById(id);
+  var ok=function(){b.textContent='✅ Copiato!';b.classList.add('ok');setTimeout(function(){b.textContent='📋 Copia titolo';b.classList.remove('ok');},1800);};
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok).catch(function(){fbCopy(txt,ok);});
+  else fbCopy(txt,ok);
+}
+
+function generate(){
+  const titolo=document.getElementById('fTitolo').value.trim();
+  if(!titolo){alert('Inserisci almeno il titolo del libro.');return;}
+  const titles=buildTitles();
+  ['t1wrap','t2wrap','t3wrap'].forEach(id=>document.getElementById(id).innerHTML='');
+  const ids=['t1wrap','t2wrap','t3wrap'];
+  titles.forEach((t,i)=>{ if(ids[i]) makeTitleBox(t.text,t.badge,t.bg,t.col,t.why,ids[i]); });
+  document.getElementById('results').style.display='block';
+  document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ── Modal personalizza ──────────────────────────────────────────────────────
+function openEditCond(){
+  const items=[...document.querySelectorAll('#condChips .chip')].map(b=>({l:b.textContent.trim(),v:b.dataset.v,tag:b.dataset.tag||''}));
+  showModal('cond',items);
+}
+function openEditTags(){
+  const items=[...document.querySelectorAll('#tagChips .chip-tag')].map(b=>({l:b.textContent.replace('✓ ','').trim()}));
+  showModal('tags',items);
+}
+function showModal(type,items){
+  const isCond=type==='cond';
+  const o=document.createElement('div');
+  o.id='editOverlay';
+  o.style.cssText='position:fixed;inset:0;background:#000a;z-index:100;display:flex;align-items:flex-end';
+  const listHtml=items.map((it,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;background:#1a1a1a;border-radius:8px;padding:8px 12px"
+      data-l="${it.l}" data-v="${it.v||''}" data-tag="${it.tag||''}">
+      <span style="flex:1;font-size:13px;color:#f0e6c8">${it.l}${isCond&&it.tag?' <span style="color:#888;font-size:10px">('+it.tag+')</span>':''}</span>
+      <button onclick="rmItem(${i})" style="background:#3a1010;border:none;color:#e74c3c;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">✕</button>
+    </div>`).join('');
+  o.innerHTML=`
+    <div style="background:#111;border:1px solid #333;border-radius:16px 16px 0 0;width:100%;max-height:80vh;overflow:auto;padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:800;color:#c9a84c;text-transform:uppercase;letter-spacing:1px">${isCond?'✏️ Condizioni':'✏️ Tag Speciali'}</div>
+        <button onclick="closeModal()" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <div id="modalList">${listHtml}</div>
+      <div style="background:#0f0f0f;border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-size:11px;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:.8px">+ Aggiungi</div>
+        ${isCond?`
+          <input id="newL" placeholder="Nome condizione" style="width:100%;background:#0e0e0e;border:1px solid #2a2a2a;color:#f0e6c8;border-radius:8px;padding:10px 12px;font-size:14px;font-family:Georgia,serif;outline:none;margin-bottom:8px;box-sizing:border-box">
+          <input id="newT" placeholder="Tag AI opzionale (es. OTTIMO)" style="width:100%;background:#0e0e0e;border:1px solid #2a2a2a;color:#f0e6c8;border-radius:8px;padding:10px 12px;font-size:14px;font-family:Georgia,serif;outline:none;box-sizing:border-box">
+        `:`<input id="newV" placeholder="Es. FUORI COMMERCIO" style="width:100%;background:#0e0e0e;border:1px solid #2a2a2a;color:#f0e6c8;border-radius:8px;padding:10px 12px;font-size:14px;font-family:Georgia,serif;outline:none;box-sizing:border-box">`}
+        <button onclick="addItem('${type}')" style="margin-top:10px;width:100%;padding:9px;border-radius:8px;border:none;background:#c9a84c;color:#000;font-weight:800;font-size:13px;cursor:pointer;font-family:Georgia,serif">+ Aggiungi</button>
+      </div>
+      <button onclick="saveModal('${type}')" style="width:100%;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,#c9a84c,#a07820);color:#000;font-weight:900;font-size:14px;cursor:pointer;font-family:Georgia,serif">✅ Salva</button>
+    </div>`;
+  document.body.appendChild(o);
+}
+function rmItem(i){
+  const rows=[...document.querySelectorAll('#modalList > div')];
+  if(rows[i]) rows[i].remove();
+  // re-index
+  document.querySelectorAll('#modalList > div button').forEach((b,idx)=>b.setAttribute('onclick',`rmItem(${idx})`));
+}
+function addItem(type){
+  const isCond=type==='cond';
+  const list=document.getElementById('modalList');
+  const i=list.children.length;
+  if(isCond){
+    const l=document.getElementById('newL').value.trim();
+    const t=document.getElementById('newT').value.trim().toUpperCase();
+    if(!l) return;
+    list.insertAdjacentHTML('beforeend',`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;background:#1a1a1a;border-radius:8px;padding:8px 12px"
+        data-l="${l}" data-v="c${Date.now()}" data-tag="${t}">
+        <span style="flex:1;font-size:13px;color:#f0e6c8">${l}${t?' <span style="color:#888;font-size:10px">('+t+')</span>':''}</span>
+        <button onclick="rmItem(${i})" style="background:#3a1010;border:none;color:#e74c3c;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">✕</button>
+      </div>`);
+    document.getElementById('newL').value=''; document.getElementById('newT').value='';
+  } else {
+    const v=document.getElementById('newV').value.trim().toUpperCase();
+    if(!v) return;
+    list.insertAdjacentHTML('beforeend',`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;background:#1a1a1a;border-radius:8px;padding:8px 12px" data-l="${v}">
+        <span style="flex:1;font-size:13px;color:#f0e6c8">${v}</span>
+        <button onclick="rmItem(${i})" style="background:#3a1010;border:none;color:#e74c3c;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">✕</button>
+      </div>`);
+    document.getElementById('newV').value='';
+  }
+}
+function saveModal(type){
+  const isCond=type==='cond';
+  const rows=[...document.querySelectorAll('#modalList > div')];
+  if(isCond){
+    const cc=document.getElementById('condChips');
+    cc.innerHTML=rows.map((r,i)=>{
+      const l=r.dataset.l; const v=r.dataset.v||'c'+i; const tag=r.dataset.tag||'';
+      return `<button class="chip${i===0?' on':''}" data-v="${l}" data-tag="${tag}" onclick="pickCond(this)">${l}</button>`;
+    }).join('');
+    const first=cc.querySelector('.chip');
+    if(first){S.cond=first.dataset.v;S.condTag=first.dataset.tag||'';}
+  } else {
+    const tc=document.getElementById('tagChips');
+    tc.innerHTML=rows.map(r=>`<button class="chip chip-tag" onclick="toggleTag(this)">${r.dataset.l}</button>`).join('');
+    S.tags=[];
+  }
+  closeModal();
+}
+function closeModal(){const o=document.getElementById('editOverlay');if(o)o.remove();}
+
+// ── Campi personalizzabili ──────────────────────────────────────────────────
+var DEF_CAMPI=[
+  {id:'fTitolo',label:'Titolo libro',placeholder:"Compilato automaticamente dall'ISBN",required:true,half:false,tipo:'text'},
+  {id:'fAutore',label:'Autore',placeholder:'es. Eco',required:false,half:true,tipo:'text'},
+  {id:'fAnno',label:'Anno',placeholder:'es. 1983',required:false,half:true,tipo:'tel'},
+  {id:'fEditore',label:'Editore',placeholder:'es. Rizzoli',required:false,half:false,tipo:'text'},
+];
+var campi=JSON.parse(localStorage.getItem('tb_campi')||'null')||DEF_CAMPI;
+
+function renderCampi(){
+  var area=document.getElementById('campiArea');
+  if(!area) return;
+  var html='';var i=0;
+  while(i<campi.length){
+    var f=campi[i];
+    if(f.half&&i+1<campi.length&&campi[i+1].half){
+      var f2=campi[i+1];
+      html+='<div class="grid2"><div><label>'+f.label+(f.required?' *':'')+'</label><input type="'+f.tipo+'" id="'+f.id+'" placeholder="'+f.placeholder+'"'+(f.tipo==='tel'?' inputmode="numeric"':'')+' style="width:100%"></div><div><label>'+f2.label+'</label><input type="'+f2.tipo+'" id="'+f2.id+'" placeholder="'+f2.placeholder+'"'+(f2.tipo==='tel'?' inputmode="numeric"':'')+' style="width:100%"></div></div>';
+      i+=2;
+    } else {
+      html+='<div><label>'+f.label+(f.required?' *':'')+'</label><input type="'+f.tipo+'" id="'+f.id+'" placeholder="'+f.placeholder+'"'+(f.tipo==='tel'?' inputmode="numeric"':'')+' style="width:100%"></div>';
+      i++;
+    }
+  }
+  area.innerHTML=html;
+}
+
+function openEditCampi(){
+  var o=document.createElement('div');
+  o.id='campiOverlay';
+  o.style.cssText='position:fixed;inset:0;background:#000a;z-index:100;display:flex;align-items:flex-end';
+  var listHtml=campi.map(function(f,i){
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;background:#1a1a1a;border-radius:8px;padding:8px 12px" data-idx="'+i+'">'
+      +'<span style="flex:1;font-size:13px;color:#f0e6c8">'+f.label+(f.required?' <span style="color:#888;font-size:10px">(obbligatorio)</span>':'')+'</span>'
+      +(f.required?'':'<button onclick="rmCampo('+i+')" style="background:#3a1010;border:none;color:#e74c3c;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">✕</button>')
+      +'</div>';
+  }).join('');
+  o.innerHTML='<div style="background:#111;border:1px solid #333;border-radius:16px 16px 0 0;width:100%;max-height:80vh;overflow:auto;padding:20px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +'<div style="font-size:13px;font-weight:800;color:#c9a84c;text-transform:uppercase;letter-spacing:1px">✏️ Campi libro</div>'
+    +'<button onclick="chiudiCampiModal()" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer">✕</button></div>'
+    +'<div id="campiList">'+listHtml+'</div>'
+    +'<div style="background:#0f0f0f;border-radius:10px;padding:14px;margin:14px 0">'
+    +'<div style="font-size:11px;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:.8px">+ Nuovo campo</div>'
+    +'<input id="newCampoLabel" placeholder="Nome campo (es. Collana)" style="width:100%;background:#0e0e0e;border:1px solid #2a2a2a;color:#f0e6c8;border-radius:8px;padding:10px 12px;font-size:14px;font-family:Georgia,serif;outline:none;margin-bottom:8px;box-sizing:border-box">'
+    +'<input id="newCampoPlaceholder" placeholder="Placeholder (es. es. I Millenni)" style="width:100%;background:#0e0e0e;border:1px solid #2a2a2a;color:#f0e6c8;border-radius:8px;padding:10px 12px;font-size:14px;font-family:Georgia,serif;outline:none;margin-bottom:8px;box-sizing:border-box">'
+    +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#888;font-size:12px;margin:0"><input type="checkbox" id="newCampoHalf"> Metà larghezza</label>'
+    +'<button onclick="aggiungiCampo()" style="margin-top:10px;width:100%;padding:9px;border-radius:8px;border:none;background:#c9a84c;color:#000;font-weight:800;font-size:13px;cursor:pointer;font-family:Georgia,serif">+ Aggiungi</button>'
+    +'</div>'
+    +'<button onclick="salvaCampi()" style="width:100%;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,#c9a84c,#a07820);color:#000;font-weight:900;font-size:14px;cursor:pointer;font-family:Georgia,serif">✅ Salva</button>'
+    +'</div>';
+  document.body.appendChild(o);
+}
+function rmCampo(i){
+  if(campi[i]&&campi[i].required){alert('Campo obbligatorio.');return;}
+  campi.splice(i,1);
+  document.body.removeChild(document.getElementById('campiOverlay'));
+  openEditCampi();
+}
+function aggiungiCampo(){
+  var l=document.getElementById('newCampoLabel').value.trim();
+  if(!l) return;
+  var p=document.getElementById('newCampoPlaceholder').value.trim();
+  var h=document.getElementById('newCampoHalf').checked;
+  campi.push({id:'fc'+Date.now(),label:l,placeholder:p,required:false,half:h,tipo:'text'});
+  document.body.removeChild(document.getElementById('campiOverlay'));
+  openEditCampi();
+}
+function salvaCampi(){
+  localStorage.setItem('tb_campi',JSON.stringify(campi));
+  chiudiCampiModal();
+  renderCampi();
+}
+function chiudiCampiModal(){var o=document.getElementById('campiOverlay');if(o)o.remove();}
+
+renderCampi();
+document.getElementById('isbnIn').addEventListener('keydown',e=>{if(e.key==='Enter')doISBN();});
+
+function salvaKey(){
+  const k=document.getElementById('claudeKey').value.trim();
+  if(!k){alert('Inserisci una API key valida');return;}
+  localStorage.setItem('claude_api_key',k);
+  const msg=document.getElementById('keyMsg');
+  msg.textContent='Key salvata!';msg.style.color='#4caf50';msg.style.display='block';
+  setTimeout(()=>msg.style.display='none',2000);
+}
+
+async function generaAI(){
+  const titolo=document.getElementById('fTitolo').value.trim();
+  if(!titolo){alert('Inserisci almeno il titolo del libro.');return;}
+  const key=localStorage.getItem('claude_api_key');
+  if(!key){alert('Inserisci prima la tua API key Claude in fondo alla pagina.');return;}
+
+  const autore=document.getElementById('fAutore').value.trim();
+  const anno=document.getElementById('fAnno').value.trim();
+  const editore=document.getElementById('fEditore').value.trim();
+  const extra=document.getElementById('fExtra').value.trim();
+  const tags=[...S.tags].join(', ');
+  const cond=S.condTag||S.cond;
+
+  const btn=document.getElementById('aiBtnGen');
+  btn.textContent='⏳ Generazione AI...';btn.disabled=true;
+
+  const prompt=`Sei un esperto di SEO per eBay Italia e conosci l'algoritmo Cassini.
+Devi generare 3 titoli ottimizzati per un libro usato su eBay.it.
+
+DATI LIBRO:
+- Titolo: ${titolo}
+- Autore: ${autore||'non specificato'}
+- Anno: ${anno||'non specificato'}
+- Editore: ${editore||'non specificato'}
+- Caratteristiche: ${tags||'nessuna'}
+- Condizione: ${cond||'non specificata'}
+- Note extra: ${extra||'nessuna'}
+
+REGOLE CASSINI OBBLIGATORIE:
+- Massimo 80 caratteri per titolo
+- No articoli (il, la, un, lo, the)
+- No punteggiatura
+- Parole più importanti all'inizio
+- Prima lettera maiuscola per ogni parola, resto minuscolo (es. Il Signore Degli Anelli Tolkien 1991 Rizzoli)
+- Includi: titolo libro, cognome autore, editore se famoso, anno, caratteristiche chiave
+- No parole vuote tipo Bellissimo Fantastico Imperdibile
+
+Indica anche quale titolo è il più efficace con "consigliato":true.
+Rispondi SOLO con un JSON così (niente altro):
+{"titoli":[{"testo":"TITOLO 1","strategia":"spiegazione breve","consigliato":true},{"testo":"TITOLO 2","strategia":"spiegazione breve","consigliato":false},{"testo":"TITOLO 3","strategia":"spiegazione breve","consigliato":false}]}`;
+
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,messages:[{role:'user',content:prompt}]})
+    });
+    const data=await resp.json();
+    if(data.error){alert('Errore API: '+data.error.message);btn.textContent='🤖 Genera con AI Claude';btn.disabled=false;return;}
+    const txt=data.content[0].text.trim();
+    const json=JSON.parse(txt.replace(/```json|```/g,'').trim());
+    const titoli=json.titoli||[];
+
+    const wrap=document.getElementById('aiResults');
+    wrap.innerHTML='';
+    titoli.forEach(function(t,i){
+      var chars=t.testo.length;
+      var col=chars>75?'#e74c3c':chars>65?'#c9a84c':'#4caf50';
+      var div=document.createElement('div');
+      div.style.cssText='background:#111;border:1px solid '+(t.consigliato?'#c9a84c':'#1a2a3a')+';border-radius:10px;padding:14px;margin-bottom:10px';
+      var label=document.createElement('div');
+      label.style.cssText='font-size:11px;color:#7eb8f7;font-weight:700;letter-spacing:1px;margin-bottom:6px';
+      label.textContent='TITOLO '+(i+1);
+      if(t.consigliato){
+        var badge=document.createElement('span');
+        badge.style.cssText='margin-left:8px;background:#c9a84c;color:#000;font-size:9px;font-weight:900;padding:2px 7px;border-radius:20px;letter-spacing:1px;vertical-align:middle';
+        badge.textContent='CONSIGLIATO';
+        label.appendChild(badge);
+      }
+      var testo=document.createElement('div');
+      testo.style.cssText='font-size:14px;font-weight:900;color:#f0e6c8;line-height:1.4;margin-bottom:6px';
+      testo.textContent=t.testo;
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px';
+      var strat=document.createElement('div');
+      strat.style.cssText='font-size:11px;color:#888;font-style:italic;flex:1;margin-right:8px';
+      strat.textContent=t.strategia;
+      var cnt=document.createElement('div');
+      cnt.style.cssText='font-size:11px;font-weight:700;color:'+col+';white-space:nowrap';
+      cnt.textContent=chars+'/80';
+      row.appendChild(strat);row.appendChild(cnt);
+      var btn=document.createElement('button');
+      btn.style.cssText='width:100%;padding:9px;border-radius:7px;border:none;background:#1a3a1a;color:#4caf50;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif';
+      btn.textContent='📋 Copia titolo';
+      var tCopy=t.testo;
+      btn.onclick=function(){
+        var ok=function(){btn.textContent='✅ Copiato!';setTimeout(function(){btn.textContent='📋 Copia titolo';},1800);};
+        if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(tCopy).then(ok).catch(function(){fbCopy(tCopy,ok);});
+        else fbCopy(tCopy,ok);
+      };
+      div.appendChild(label);div.appendChild(testo);div.appendChild(row);div.appendChild(btn);
+      wrap.appendChild(div);
+    });
+    document.getElementById('aiResultWrap').style.display='block';
+    document.getElementById('aiResultWrap').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(err){
+    alert('Errore: '+err.message);
+  }
+  btn.textContent='🤖 Genera con AI Claude';btn.disabled=false;
+}
+
+// Carica key salvata
+const savedKey=localStorage.getItem('claude_api_key');
+if(savedKey) document.getElementById('claudeKey').value=savedKey;
+</script>
+</body>
+</html>

@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="it">
+<head><script>
+(function(){
+  // Store original setItem to avoid recursive loop
+  var _origSet = Storage.prototype.setItem;
+  
+  // Override setItem to sync to parent
+  Storage.prototype.setItem = function(key, value){
+    _origSet.call(this, key, value);
+    try{ window.parent.postMessage({type:'SYNC', key:key, value:value}, '*'); }catch(e){}
+  };
+
+  // Receive data from parent (use original to avoid loop)
+  window.addEventListener('message', function(e){
+    if(e.data && e.data.type === 'LOAD_KEY'){
+      try{ _origSet.call(localStorage, e.data.key, e.data.value); }catch(ex){}
+    }
+  });
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vinted ISBN Manager</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500;700&family=Playfair+Display:wght@400;700&display=swap');
+
+:root {
+  --bg: #0a0c10;
+  --surface: #111318;
+  --surface2: #181b23;
+  --border: #20242f;
+  --accent: #09b3a0;
+  --accent2: #1de9d4;
+  --warn: #f5a623;
+  --err: #f06060;
+  --text: #e0e8f0;
+  --muted: #556070;
+  --found-bg: #051a18;
+  --found-border: #0d7a6f;
+  --notfound-bg: #180808;
+  --notfound-border: #7a1515;
+  --heart: #e8315a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+
+header {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 12px 22px; display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 200; gap: 10px; flex-wrap: wrap;
+}
+.logo { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+.logo-heart { color: var(--heart); font-size: 16px; }
+.header-stats { display: flex; gap: 16px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+.header-stats span { color: var(--text); }
+.header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+button { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; border: none; border-radius: 7px; padding: 8px 15px; cursor: pointer; transition: all 0.15s; }
+.btn-primary { background: var(--accent); color: #000; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-primary:disabled { background: #0d2825; color: var(--muted); cursor: not-allowed; }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+.btn-export { background: var(--warn); color: #000; }
+.btn-export:hover { background: #f7bd55; }
+.btn-export:disabled { background: #1c1200; color: var(--muted); cursor: not-allowed; }
+.btn-clear { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.btn-clear:hover { border-color: var(--err); color: var(--err); }
+
+.main { max-width: 1280px; margin: 0 auto; padding: 22px 18px; }
+
+#loadSection {
+  background: var(--surface); border: 2px dashed var(--border); border-radius: 18px;
+  padding: 52px 32px; text-align: center; margin-bottom: 22px; transition: border-color 0.2s, background 0.2s;
+}
+#loadSection.drag-over { border-color: var(--accent); background: var(--found-bg); }
+#loadSection h2 { font-size: 22px; font-weight: 700; margin-bottom: 10px; }
+#loadSection p { color: var(--muted); font-size: 13px; margin-bottom: 22px; line-height: 1.7; }
+#loadSection input[type=file] { display: none; }
+.drop-icon { font-size: 52px; margin-bottom: 14px; }
+
+.file-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
+.file-chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--accent2); display: flex; align-items: center; gap: 6px; }
+.file-chip .rm { color: var(--muted); cursor: pointer; font-size: 12px; }
+.file-chip .rm:hover { color: var(--err); }
+
+.or-divider { color: var(--muted); font-size: 12px; margin: 14px 0; position: relative; }
+.or-divider::before, .or-divider::after { content: ''; position: absolute; top: 50%; width: 80px; height: 1px; background: var(--border); }
+.or-divider::before { right: calc(50% + 20px); }
+.or-divider::after { left: calc(50% + 20px); }
+
+.threshold-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 18px; margin-bottom: 14px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+.threshold-label { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.threshold-label .heart-ico { color: var(--heart); font-size: 14px; }
+.threshold-num { width: 52px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; padding: 4px 8px; outline: none; text-align: center; }
+.threshold-num:focus { border-color: var(--heart); }
+
+.summary { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 18px; margin-bottom: 14px; display: flex; gap: 20px; font-family: 'DM Mono', monospace; font-size: 11px; flex-wrap: wrap; align-items: center; }
+.summary-item { display: flex; flex-direction: column; gap: 2px; }
+.summary-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; }
+.summary-val { font-size: 18px; font-weight: 600; }
+.summary-val.teal { color: var(--accent); }
+.summary-val.red { color: var(--err); }
+.summary-val.gold { color: var(--warn); }
+.summary-val.pink { color: var(--heart); }
+
+.toolbar { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 9px 14px; margin-bottom: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.search-input { flex: 1; min-width: 170px; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 7px 12px; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--text); outline: none; }
+.search-input:focus { border-color: var(--accent2); }
+.search-input::placeholder { color: var(--muted); }
+.sort-select { padding: 7px 26px 7px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 11px; outline: none; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' stroke-width='1.5' fill='none'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
+.view-toggle { display: flex; gap: 4px; }
+.view-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; padding: 6px 10px; color: var(--muted); font-size: 14px; cursor: pointer; }
+.view-btn.active { border-color: var(--accent); color: var(--accent); background: var(--found-bg); }
+.filter-btn { font-size: 11px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); cursor: pointer; }
+.filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+.filter-btn.active { border-color: var(--accent); color: var(--accent); background: var(--found-bg); }
+.filter-btn.active-gold { border-color: var(--warn); color: var(--warn); background: #1c1000; }
+.rc { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); margin-left: auto; }
+
+#itemsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 14px; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; transition: border-color 0.15s; position: relative; }
+.card:hover { border-color: #333a4d; }
+.card.has-isbn { box-shadow: 0 0 0 2px var(--accent), 0 3px 10px rgba(0,0,0,.4); border-color: var(--found-border); }
+.card.manual-set { box-shadow: 0 0 0 2px var(--warn); }
+
+.card-img-wrap { position: relative; width: 100%; padding-top: 133%; background: var(--surface2); overflow: hidden; flex-shrink: 0; }
+.card-img-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.card-img-wrap .no-img { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 30px; }
+
+.card-price-badge {
+  position: absolute; top: 7px; right: 7px;
+  background: rgba(10,12,16,0.88); color: var(--warn);
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700;
+  padding: 2px 7px; border-radius: 5px; z-index: 2; cursor: pointer;
+  border: 1px solid transparent; transition: border-color 0.15s;
+}
+.card-price-badge:hover { border-color: var(--warn); }
+.card-price-badge.edited { color: var(--accent2); border-color: var(--accent); }
+
+.card-hearts { position: absolute; top: 7px; left: 7px; background: rgba(10,12,16,0.82); color: var(--heart); font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 5px; z-index: 2; display: flex; align-items: center; gap: 3px; }
+.card-isbn-chip { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(9,179,160,0.88); color: #000; font-size: 9px; font-family: 'DM Mono', monospace; text-align: center; padding: 3px 4px; font-weight: 700; }
+.card-isbn-chip.manual { background: rgba(245,166,35,0.92); }
+
+.card-body { padding: 9px 10px 11px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.card-title { font-family: 'Playfair Display', serif; font-size: 11px; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); }
+.card-cond { font-size: 9px; color: var(--muted); font-family: 'DM Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Price edit row */
+.price-row { display: flex; gap: 4px; align-items: center; }
+.price-label { font-size: 9px; color: var(--muted); flex-shrink: 0; font-family: 'DM Mono', monospace; }
+.price-input { flex: 1; font-family: 'DM Mono', monospace; font-size: 11px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 5px; outline: none; min-width: 0; background: var(--surface2); color: var(--warn); font-weight: 700; }
+.price-input:focus { border-color: var(--warn); }
+.price-input.edited { color: var(--accent2); background: #041e24; border-color: var(--accent); }
+.price-reset { border-radius: 5px; padding: 3px 6px; font-size: 10px; flex-shrink: 0; cursor: pointer; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); font-weight: 600; }
+.price-reset:hover { border-color: var(--err); color: var(--err); }
+
+.card-links { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.lnk { font-size: 9px; font-weight: 700; text-decoration: none; padding: 2px 7px; border-radius: 4px; white-space: nowrap; border: 1px solid transparent; }
+.lnk-vinted { color: var(--accent); border-color: var(--found-border); background: var(--found-bg); }
+.lnk-vinted:hover { background: #0a2e2a; }
+.lnk-ebay { color: var(--err); border-color: #7a1515; background: var(--notfound-bg); }
+.lnk-ebay:hover { background: #3a0000; }
+/* Google link: teal when no ISBN (= title search), green when ISBN known */
+.lnk-google-title { color: var(--accent2); border-color: #0e4a55; background: #041e24; }
+.lnk-google-title:hover { background: #0e2d35; }
+.lnk-google-isbn { color: var(--accent); border-color: var(--found-border); background: var(--found-bg); }
+.lnk-google-isbn:hover { background: #0a2e2a; }
+
+.isbn-row { display: flex; gap: 4px; }
+.isbn-input { flex: 1; font-family: 'DM Mono', monospace; font-size: 11px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 5px; outline: none; min-width: 0; background: var(--surface2); color: var(--text); }
+.isbn-input:focus { border-color: var(--accent); }
+.isbn-input.set { background: var(--found-bg); border-color: var(--found-border); color: var(--accent); font-weight: 600; }
+.bsave-card, .bclear-card { border-radius: 5px; padding: 4px 7px; font-size: 10px; flex-shrink: 0; cursor: pointer; border: none; font-weight: 600; }
+.bsave-card { background: var(--accent); color: #000; }
+.bsave-card:hover { background: var(--accent2); }
+.bclear-card { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.bclear-card:hover { border-color: var(--err); color: var(--err); }
+
+/* List view */
+#itemsGrid.list-view { display: flex; flex-direction: column; gap: 7px; }
+#itemsGrid.list-view .card { flex-direction: row; border-radius: 9px; align-items: stretch; }
+#itemsGrid.list-view .card-img-wrap { width: 55px; min-width: 55px; padding-top: 0; height: 74px; flex-shrink: 0; }
+#itemsGrid.list-view .card-img-wrap img { width: 55px; height: 74px; object-fit: cover; position: static; }
+#itemsGrid.list-view .card-price-badge { top: 3px; right: 3px; font-size: 9px; padding: 1px 4px; }
+#itemsGrid.list-view .card-hearts { top: 3px; left: 3px; font-size: 9px; padding: 1px 4px; }
+#itemsGrid.list-view .card-isbn-chip { display: none; }
+#itemsGrid.list-view .card-body { flex-direction: row; align-items: center; gap: 10px; padding: 8px 12px; flex-wrap: wrap; }
+#itemsGrid.list-view .card-title { flex: 1; min-width: 120px; font-size: 12px; -webkit-line-clamp: 2; }
+#itemsGrid.list-view .card-links { flex-wrap: nowrap; }
+#itemsGrid.list-view .isbn-row { min-width: 200px; }
+#itemsGrid.list-view .card-cond { display: none; }
+#itemsGrid.list-view .price-row { min-width: 110px; }
+
+.empty-st { grid-column: 1/-1; text-align: center; padding: 60px; color: var(--muted); font-size: 14px; }
+
+.session-bar { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; margin-bottom: 12px; display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.session-bar .session-info { flex: 1; min-width: 200px; }
+
+.toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--accent); border-radius: 10px; padding: 12px 18px; font-size: 13px; color: var(--accent); z-index: 9999; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.error { border-color: var(--err); color: var(--err); }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><span class="logo-heart">♥</span> Vinted ISBN Manager</div>
+  <div class="header-stats" id="hdrStats" style="display:none">
+    <div>Totale <span id="hTot">0</span></div>
+    <div>ISBN <span id="hIsbn" style="color:var(--accent)">0</span></div>
+    <div>Senza ISBN <span id="hMiss" style="color:var(--err)">0</span></div>
+    <div>❤ Min <span id="hMinHeart" style="color:var(--heart)">3</span></div>
+  </div>
+  <div class="header-right" id="hdrRight" style="display:none">
+    <button class="btn-secondary" onclick="saveSession()">💾 Salva</button>
+    <button class="btn-secondary" onclick="loadSession()">📂 Riprendi</button>
+    <button class="btn-export" id="btnExport" onclick="exportExcel()" disabled>↓ Excel</button>
+  </div>
+</header>
+
+<div class="main">
+
+<div id="loadSection"
+     ondragover="event.preventDefault(); this.classList.add('drag-over')"
+     ondragleave="this.classList.remove('drag-over')"
+     ondrop="handleDrop(event)">
+  <div class="drop-icon">🛍️</div>
+  <h2>Carica pagine Vinted</h2>
+  <p>
+    Salva le pagine Vinted con <strong>Ctrl+S</strong> (formato <strong>.mhtml</strong> o <strong>.html</strong>).<br>
+    Puoi caricare <strong>più file contemporaneamente</strong> — verranno uniti in un'unica lista.<br>
+    Solo gli articoli con <strong>≥ 3 ❤</strong> saranno mostrati (soglia regolabile).
+  </p>
+  <button class="btn-primary" onclick="document.getElementById('fileInput').click()">📂 Scegli file Vinted (.mhtml / .html)</button>
+  <input type="file" id="fileInput" accept=".mhtml,.html,.htm" multiple onchange="handleFileInputChange(event)">
+  <div id="fileListDisplay" class="file-list"></div>
+  <button class="btn-primary" id="btnProcess" onclick="processAllFiles()" style="display:none; margin-top:16px">▶ Analizza file caricati</button>
+  <div class="or-divider" style="margin-top:20px">oppure</div>
+  <p style="font-size:12px; margin-top:0">Se hai una sessione salvata:</p>
+  <button class="btn-secondary" style="margin-top:8px" onclick="loadSession()">📂 Riprendi sessione salvata</button>
+</div>
+
+<div id="appContent" style="display:none">
+
+  <div class="session-bar">
+    <div class="session-info" id="sessionStatus">Nessuna sessione salvata</div>
+    <button class="btn-clear" onclick="clearSession()">✕ Elimina sessione</button>
+  </div>
+
+  <div class="threshold-bar">
+    <span class="threshold-label"><span class="heart-ico">♥</span> Mostra solo articoli con almeno</span>
+    <input type="number" class="threshold-num" id="heartThreshold" value="3" min="0" max="999" oninput="applyThreshold()">
+    <span class="threshold-label">cuoricini</span>
+    <span style="color:var(--muted); font-size:11px; margin-left:8px" id="thresholdInfo"></span>
+  </div>
+
+  <div class="summary">
+    <div class="summary-item"><div class="summary-label">Totale visibili</div><div class="summary-val teal" id="sTot">0</div></div>
+    <div class="summary-item"><div class="summary-label">Con ISBN</div><div class="summary-val teal" id="sIsbn">0</div></div>
+    <div class="summary-item"><div class="summary-label">Senza ISBN</div><div class="summary-val red" id="sMiss">0</div></div>
+    <div class="summary-item"><div class="summary-label">❤ Max like</div><div class="summary-val pink" id="sMaxHeart">0</div></div>
+    <div class="summary-item"><div class="summary-label">Prezzi editati</div><div class="summary-val gold" id="sPriceEdited">0</div></div>
+    <div class="summary-item"><div class="summary-label">File caricati</div><div class="summary-val gold" id="sFiles">0</div></div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" class="search-input" id="searchBox" placeholder="🔍 Cerca titolo…" oninput="renderItems()">
+    <select class="sort-select" id="sortSel" onchange="renderItems()">
+      <option value="hearts_desc">❤ Decrescente</option>
+      <option value="hearts_asc">❤ Crescente</option>
+      <option value="price_desc">€ Decrescente</option>
+      <option value="price_asc">€ Crescente</option>
+      <option value="title_asc">Titolo A→Z</option>
+    </select>
+    <button class="filter-btn active" id="fAll" onclick="setFilter('all')">Tutti</button>
+    <button class="filter-btn" id="fHasIsbn" onclick="setFilter('hasIsbn')">Con ISBN</button>
+    <button class="filter-btn active-gold" id="fNoIsbn" onclick="setFilter('noIsbn')">Senza ISBN</button>
+    <div class="view-toggle">
+      <button class="view-btn active" id="vGrid" onclick="setView('grid')" title="Griglia">▦</button>
+      <button class="view-btn" id="vList" onclick="setView('list')" title="Lista">☰</button>
+    </div>
+    <span class="rc" id="rcCount">0 articoli</span>
+  </div>
+
+  <div id="itemsGrid"></div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SESSION_KEY = 'vinted_isbn_v4';
+let ALL_ITEMS = [];
+let itemState = []; // { manualIsbn, source, manualPrice }
+let pendingFiles = [];
+let currentView = 'grid';
+let currentFilter = 'all';
+let heartThreshold = 3;
+let totalFilesLoaded = 0;
+
+// ─── FILE HANDLING ────────────────────────────────────
+function handleFileInputChange(ev) {
+  Array.from(ev.target.files).forEach(f => {
+    if (!pendingFiles.find(p => p.name === f.name)) pendingFiles.push(f);
+  });
+  ev.target.value = '';
+  renderPendingFiles();
+}
+function handleDrop(ev) {
+  ev.preventDefault();
+  document.getElementById('loadSection').classList.remove('drag-over');
+  Array.from(ev.dataTransfer.files).filter(f => f.name.match(/\.(mhtml|html|htm)$/i))
+    .forEach(f => { if (!pendingFiles.find(p => p.name === f.name)) pendingFiles.push(f); });
+  renderPendingFiles();
+}
+function renderPendingFiles() {
+  const cont = document.getElementById('fileListDisplay');
+  const btn  = document.getElementById('btnProcess');
+  cont.innerHTML = '';
+  pendingFiles.forEach((f, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'file-chip';
+    chip.innerHTML = `📄 ${f.name} <span class="rm" onclick="removePendingFile(${i})">✕</span>`;
+    cont.appendChild(chip);
+  });
+  btn.style.display = pendingFiles.length > 0 ? 'inline-block' : 'none';
+}
+function removePendingFile(i) { pendingFiles.splice(i, 1); renderPendingFiles(); }
+
+async function processAllFiles() {
+  if (!pendingFiles.length) return;
+  showToast(`⏳ Analisi di ${pendingFiles.length} file…`);
+  const results = [];
+  for (const file of pendingFiles) {
+    const text = await readFileText(file);
+    results.push(...parseVintedHTML(text));
+  }
+  if (!results.length) { showToast('⚠ Nessun articolo trovato. Usa file .mhtml di Vinted.', true); return; }
+  const seen = new Set(), unique = [];
+  results.forEach(item => { if (!seen.has(item.id)) { seen.add(item.id); unique.push(item); } });
+  totalFilesLoaded += pendingFiles.length;
+  pendingFiles = [];
+  renderPendingFiles();
+  initApp(unique, null);
+}
+function readFileText(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Read error')); r.readAsText(file, 'utf-8'); });
+}
+
+// ─── PARSE VINTED ─────────────────────────────────────
+function decodeQP(str) {
+  return str.replace(/=\r\n/g, '').replace(/=\n/g, '').replace(/=([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+function parseVintedHTML(rawText) {
+  let html = rawText;
+  if (rawText.includes('=3D') || rawText.includes('=\r\n') || rawText.includes('=\n')) html = decodeQP(rawText);
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const items = [];
+
+  doc.querySelectorAll('[data-testid$="--image--img"]').forEach(img => {
+    const testid = img.getAttribute('data-testid') || '';
+    const idMatch = testid.match(/(?:product-item-id-|item-)(\d+)--image--img/);
+    if (!idMatch) return;
+    const id = idMatch[1];
+
+    const imgUrl = img.getAttribute('src') || '';
+
+    // Hearts
+    let hearts = 0;
+    const hEl = doc.querySelector(`[data-testid="product-item-id-${id}--favourite"] [data-testid="favourite-count-text"]`)
+             || doc.querySelector(`[data-testid="item-${id}--favourite"] [data-testid="favourite-count-text"]`);
+    if (hEl) {
+      hearts = parseInt(hEl.textContent.trim()) || 0;
+    } else {
+      const favBtn = doc.querySelector(`[data-testid="product-item-id-${id}--favourite"]`) || doc.querySelector(`[data-testid="item-${id}--favourite"]`);
+      if (favBtn) { const m = (favBtn.getAttribute('aria-label') || '').match(/(\d+)\s*utenti?/i); if (m) hearts = parseInt(m[1]) || 0; }
+    }
+
+    // Link
+    let link = '';
+    const ol = doc.querySelector(`[data-testid="product-item-id-${id}--overlay-link"]`) || doc.querySelector(`[data-testid="item-${id}--overlay-link"]`);
+    if (ol) { link = ol.getAttribute('href') || ''; if (link && !link.startsWith('http')) link = 'https://www.vinted.it' + link; }
+
+    // Title
+    let title = '';
+    const tEl = doc.querySelector(`[data-testid="product-item-id-${id}--description-title"]`) || doc.querySelector(`[data-testid="item-${id}--description-title"]`);
+    if (tEl) title = tEl.textContent.trim();
+    if (!title) title = (img.getAttribute('alt') || '').split(', condizioni:')[0].trim();
+
+    // Condition
+    const cEl = doc.querySelector(`[data-testid="product-item-id-${id}--description-subtitle"]`) || doc.querySelector(`[data-testid="item-${id}--description-subtitle"]`);
+    const condition = cEl ? cEl.textContent.trim() : '';
+
+    // Price
+    const pEl = doc.querySelector(`[data-testid="product-item-id-${id}--price-text"]`) || doc.querySelector(`[data-testid="item-${id}--price-text"]`);
+    const price = pEl ? pEl.textContent.replace(/\u00a0/g, ' ').replace(/\u20ac/g, '€').trim() : '';
+
+    // Auto-ISBN from text
+    const isbnMatch = (title + ' ' + condition).replace(/[-\s]/g, '').match(/(?:ISBN[-: ]*)?(97[89]\d{10}|\d{10})/i);
+    const isbn = isbnMatch ? isbnMatch[1] : '';
+
+    items.push({ id, imgUrl, hearts, link, title, condition, price, isbn });
+  });
+
+  // Fallback
+  if (!items.length) {
+    doc.querySelectorAll('[data-testid^="product-item-id-"]:not([data-testid*="--"]), [data-testid^="item-"]:not([data-testid*="--"])').forEach(ct => {
+      const m = (ct.getAttribute('data-testid') || '').match(/(?:product-item-id-|item-)(\d+)$/);
+      if (!m) return;
+      const id = m[1];
+      const img = ct.querySelector('img');
+      const imgUrl = img ? (img.getAttribute('src') || '') : '';
+      let hearts = 0;
+      const hEl = ct.querySelector('[data-testid="favourite-count-text"]');
+      if (hEl) hearts = parseInt(hEl.textContent.trim()) || 0;
+      let link = '';
+      const aEl = ct.querySelector('a[data-testid$="--overlay-link"]');
+      if (aEl) { link = aEl.getAttribute('href') || ''; if (link && !link.startsWith('http')) link = 'https://www.vinted.it' + link; }
+      const tEl = ct.querySelector('[data-testid$="--description-title"]');
+      const title = tEl ? tEl.textContent.trim() : (img ? img.getAttribute('alt') || '' : '');
+      const cEl = ct.querySelector('[data-testid$="--description-subtitle"]');
+      const condition = cEl ? cEl.textContent.trim() : '';
+      const pEl = ct.querySelector('[data-testid$="--price-text"]');
+      const price = pEl ? pEl.textContent.replace(/\u00a0/g, ' ').replace(/\u20ac/g, '€').trim() : '';
+      const isbnMatch = (title + ' ' + condition).replace(/[-\s]/g, '').match(/(?:ISBN[-: ]*)?(97[89]\d{10}|\d{10})/i);
+      const isbn = isbnMatch ? isbnMatch[1] : '';
+      items.push({ id, imgUrl, hearts, link, title, condition, price, isbn });
+    });
+  }
+  return items;
+}
+
+// ─── INIT ─────────────────────────────────────────────
+function initApp(items, states) {
+  ALL_ITEMS = items;
+  itemState = states
+    ? states.map(s => ({ manualIsbn: s.manualIsbn || '', source: s.source || 'none', manualPrice: s.manualPrice || '' }))
+    : items.map(item => ({ manualIsbn: item.isbn || '', source: item.isbn ? 'auto' : 'none', manualPrice: '' }));
+
+  document.getElementById('loadSection').style.display = 'none';
+  document.getElementById('appContent').style.display = '';
+  document.getElementById('hdrStats').style.display = '';
+  document.getElementById('hdrRight').style.display = '';
+  document.getElementById('sFiles').textContent = totalFilesLoaded;
+  heartThreshold = parseInt(document.getElementById('heartThreshold').value) || 3;
+  updateStats(); renderItems(); updateSessionStatus();
+  showToast(`✓ ${items.length} articoli (${getVisibleItems().length} sopra soglia ❤)`);
+}
+
+// ─── VISIBLE / THRESHOLD ──────────────────────────────
+function getVisibleItems() { return ALL_ITEMS.filter(item => item.hearts >= heartThreshold); }
+function applyThreshold() {
+  heartThreshold = parseInt(document.getElementById('heartThreshold').value) || 0;
+  document.getElementById('hMinHeart').textContent = heartThreshold;
+  updateStats(); renderItems();
+}
+
+// ─── RENDER ───────────────────────────────────────────
+function renderItems() {
+  const grid   = document.getElementById('itemsGrid');
+  const search = document.getElementById('searchBox').value.toLowerCase().trim();
+  const sort   = document.getElementById('sortSel').value;
+
+  let visible = getVisibleItems();
+  if (search) visible = visible.filter(item => item.title.toLowerCase().includes(search));
+  if (currentFilter === 'hasIsbn') visible = visible.filter(item => getEffectiveIsbn(ALL_ITEMS.indexOf(item)));
+  else if (currentFilter === 'noIsbn') visible = visible.filter(item => !getEffectiveIsbn(ALL_ITEMS.indexOf(item)));
+
+  visible.sort((a, b) => {
+    const ai = ALL_ITEMS.indexOf(a), bi = ALL_ITEMS.indexOf(b);
+    if (sort === 'hearts_desc') return b.hearts - a.hearts;
+    if (sort === 'hearts_asc')  return a.hearts - b.hearts;
+    if (sort === 'price_desc')  return parsePrice(getEffectivePrice(bi)) - parsePrice(getEffectivePrice(ai));
+    if (sort === 'price_asc')   return parsePrice(getEffectivePrice(ai)) - parsePrice(getEffectivePrice(bi));
+    if (sort === 'title_asc')   return a.title.localeCompare(b.title, 'it');
+    return 0;
+  });
+
+  document.getElementById('rcCount').textContent = `${visible.length} articoli`;
+  const total = ALL_ITEMS.length, vis = getVisibleItems().length;
+  document.getElementById('thresholdInfo').textContent = `${vis} visibili, ${total - vis} nascosti su ${total} totali`;
+  grid.className = currentView === 'list' ? 'list-view' : '';
+  grid.innerHTML = '';
+
+  if (!visible.length) {
+    const e = document.createElement('div'); e.className = 'empty-st'; e.textContent = '😶 Nessun articolo con i filtri attuali.'; grid.appendChild(e); return;
+  }
+  visible.forEach(item => grid.appendChild(buildCard(item, ALL_ITEMS.indexOf(item))));
+}
+
+function parsePrice(str) { return parseFloat((str || '').replace(',', '.').replace(/[^0-9.]/g, '')) || 0; }
+
+// ─── BUILD CARD ───────────────────────────────────────
+function buildCard(item, idx) {
+  const isbn    = getEffectiveIsbn(idx);
+  const st      = itemState[idx];
+  const effPr   = getEffectivePrice(idx);
+
+  const card = document.createElement('div');
+  card.className = 'card' + (isbn ? ' has-isbn' : '') + (st.source === 'manual' && isbn ? ' manual-set' : '');
+  card.id = 'card' + idx;
+
+  // Image wrap
+  const imgWrap = document.createElement('div');
+  imgWrap.className = 'card-img-wrap';
+
+  const hBadge = document.createElement('div');
+  hBadge.className = 'card-hearts';
+  hBadge.innerHTML = `♥ ${item.hearts}`;
+  imgWrap.appendChild(hBadge);
+
+  const pBadge = document.createElement('div');
+  pBadge.className = 'card-price-badge' + (st.manualPrice ? ' edited' : '');
+  pBadge.id = 'pb' + idx;
+  pBadge.textContent = effPr || '–';
+  pBadge.title = st.manualPrice ? `Prezzo Vinted: ${item.price}` : 'Clicca per modificare il prezzo';
+  pBadge.onclick = () => { const pi = document.getElementById('pi' + idx); if (pi) { pi.focus(); pi.select(); } };
+  imgWrap.appendChild(pBadge);
+
+  if (item.imgUrl) {
+    const img = document.createElement('img');
+    img.src = item.imgUrl; img.alt = item.title; img.loading = 'lazy';
+    img.onerror = function() { this.style.display = 'none'; const ph = document.createElement('div'); ph.className = 'no-img'; ph.textContent = '📚'; imgWrap.appendChild(ph); };
+    imgWrap.appendChild(img);
+  } else {
+    const ph = document.createElement('div'); ph.className = 'no-img'; ph.textContent = '📚'; imgWrap.appendChild(ph);
+  }
+
+  if (isbn) {
+    const chip = document.createElement('div');
+    chip.className = 'card-isbn-chip' + (st.source === 'manual' ? ' manual' : '');
+    chip.textContent = isbn;
+    imgWrap.appendChild(chip);
+  }
+  card.appendChild(imgWrap);
+
+  // Body
+  const body = document.createElement('div');
+  body.className = 'card-body';
+
+  const titleEl = document.createElement('div');
+  titleEl.className = 'card-title';
+  titleEl.textContent = item.title || '(senza titolo)';
+  body.appendChild(titleEl);
+
+  if (item.condition) {
+    const condEl = document.createElement('div'); condEl.className = 'card-cond'; condEl.textContent = item.condition; body.appendChild(condEl);
+  }
+
+  // ── Price row ──
+  const priceRow = document.createElement('div');
+  priceRow.className = 'price-row';
+
+  const priceLabel = document.createElement('span');
+  priceLabel.className = 'price-label';
+  priceLabel.textContent = 'Prezzo:';
+  priceRow.appendChild(priceLabel);
+
+  const priceInp = document.createElement('input');
+  priceInp.type = 'text';
+  priceInp.className = 'price-input' + (st.manualPrice ? ' edited' : '');
+  priceInp.value = effPr;
+  priceInp.id = 'pi' + idx;
+  priceInp.placeholder = item.price || '';
+  priceInp.title = st.manualPrice ? `Originale Vinted: ${item.price}` : 'Inserisci prezzo eBay per sovrascrivere';
+  priceInp.onchange = () => savePrice(idx);
+  priceInp.onkeydown = e => { if (e.key === 'Enter') { savePrice(idx); priceInp.blur(); } };
+  priceRow.appendChild(priceInp);
+
+  if (st.manualPrice) {
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'price-reset'; resetBtn.textContent = '↺';
+    resetBtn.title = `Ripristina prezzo Vinted (${item.price})`;
+    resetBtn.onclick = () => resetPrice(idx);
+    priceRow.appendChild(resetBtn);
+  }
+  body.appendChild(priceRow);
+
+  // ── Links row ──
+  const linksRow = document.createElement('div');
+  linksRow.className = 'card-links';
+
+  if (item.link) {
+    const lV = document.createElement('a');
+    lV.className = 'lnk lnk-vinted'; lV.href = item.link; lV.target = '_blank'; lV.rel = 'noreferrer'; lV.textContent = 'Vinted';
+    linksRow.appendChild(lV);
+  }
+
+  if (item.title) {
+    const lE = document.createElement('a');
+    lE.className = 'lnk lnk-ebay'; lE.href = ebayUrl(item.title); lE.target = '_blank'; lE.rel = 'noreferrer'; lE.textContent = 'eBay';
+    linksRow.appendChild(lE);
+  }
+
+  // Google ISBN — comportamento intelligente:
+  // • se ISBN noto → cerca il codice ISBN su Google (link verde)
+  // • se ISBN non noto → cerca "titolo ISBN" su Google (link teal)
+  const lG = document.createElement('a');
+  lG.target = '_blank'; lG.rel = 'noreferrer'; lG.id = 'gl' + idx;
+  if (isbn) {
+    lG.className = 'lnk lnk-google-isbn';
+    lG.href = `https://www.google.com/search?q=${encodeURIComponent(isbn)}`;
+    lG.textContent = '🔍 ISBN';
+    lG.title = `Cerca ISBN ${isbn} su Google`;
+  } else {
+    lG.className = 'lnk lnk-google-title';
+    lG.href = `https://www.google.com/search?q=${encodeURIComponent(item.title + ' ISBN')}`;
+    lG.textContent = '🔍 ISBN';
+    lG.title = `Cerca "${item.title} ISBN" su Google`;
+  }
+  linksRow.appendChild(lG);
+
+  body.appendChild(linksRow);
+
+  // ── ISBN input ──
+  const isbnRow = document.createElement('div');
+  isbnRow.className = 'isbn-row';
+
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'isbn-input' + (isbn ? ' set' : '');
+  inp.placeholder = isbn ? isbn : 'ISBN manuale…';
+  inp.value = st.manualIsbn;
+  inp.id = 'ii' + idx; inp.maxLength = 13;
+  inp.oninput = () => onIsbnInput(idx);
+  inp.onkeydown = e => { if (e.key === 'Enter') saveIsbn(idx); };
+  isbnRow.appendChild(inp);
+
+  const bSave = document.createElement('button');
+  bSave.className = 'bsave-card'; bSave.textContent = '✓'; bSave.title = 'Salva ISBN'; bSave.onclick = () => saveIsbn(idx);
+  isbnRow.appendChild(bSave);
+
+  if (st.manualIsbn) {
+    const bClear = document.createElement('button');
+    bClear.className = 'bclear-card'; bClear.textContent = '✕'; bClear.title = 'Cancella ISBN'; bClear.onclick = () => clearIsbn(idx);
+    isbnRow.appendChild(bClear);
+  }
+
+  body.appendChild(isbnRow);
+  card.appendChild(body);
+  return card;
+}
+
+// ─── PRICE ────────────────────────────────────────────
+function getEffectivePrice(idx) { return itemState[idx].manualPrice || ALL_ITEMS[idx].price || ''; }
+
+function savePrice(idx) {
+  const inp = document.getElementById('pi' + idx);
+  if (!inp) return;
+  const val = inp.value.trim();
+  itemState[idx].manualPrice = (val === ALL_ITEMS[idx].price || val === '') ? '' : val;
+  const edited = !!itemState[idx].manualPrice;
+  inp.className = 'price-input' + (edited ? ' edited' : '');
+  inp.title = edited ? `Originale Vinted: ${ALL_ITEMS[idx].price}` : 'Inserisci prezzo eBay per sovrascrivere';
+  const pb = document.getElementById('pb' + idx);
+  if (pb) { pb.textContent = getEffectivePrice(idx) || '–'; pb.className = 'card-price-badge' + (edited ? ' edited' : ''); pb.title = edited ? `Prezzo Vinted: ${ALL_ITEMS[idx].price}` : 'Clicca per modificare il prezzo'; }
+  // Aggiorna pulsante reset in-place senza riordinare le card
+  const card = document.getElementById('card' + idx);
+  if (card) {
+    const priceRow = card.querySelector('.price-row');
+    if (priceRow) {
+      let resetBtn = priceRow.querySelector('.price-reset');
+      if (edited && !resetBtn) {
+        resetBtn = document.createElement('button');
+        resetBtn.className = 'price-reset'; resetBtn.textContent = '↺';
+        resetBtn.title = `Ripristina prezzo Vinted (${ALL_ITEMS[idx].price})`;
+        resetBtn.onclick = () => resetPrice(idx);
+        priceRow.appendChild(resetBtn);
+      } else if (!edited && resetBtn) {
+        resetBtn.remove();
+      }
+    }
+  }
+  updateStats();
+}
+
+function resetPrice(idx) { itemState[idx].manualPrice = ''; renderItems(); }
+
+// ─── ISBN ─────────────────────────────────────────────
+function getEffectiveIsbn(idx) { const s = itemState[idx]; return s.manualIsbn || ALL_ITEMS[idx].isbn || ''; }
+
+function onIsbnInput(idx) {
+  const inp = document.getElementById('ii' + idx);
+  if (inp) { itemState[idx].manualIsbn = inp.value.trim().replace(/[^0-9Xx]/g, ''); inp.value = itemState[idx].manualIsbn; }
+}
+
+function saveIsbn(idx) {
+  const inp = document.getElementById('ii' + idx);
+  if (!inp) return;
+  const val = inp.value.trim().replace(/[^0-9Xx]/g, '');
+  itemState[idx].manualIsbn = val;
+  itemState[idx].source = val ? 'manual' : 'none';
+  updateStats();
+  // Aggiorna la card in-place senza riordinare/ricreare il DOM
+  updateCardInPlace(idx);
+  showToast(val ? `✓ ISBN salvato: ${val}` : 'ISBN rimosso');
+}
+
+function clearIsbn(idx) {
+  itemState[idx].manualIsbn = '';
+  itemState[idx].source = 'none';
+  updateStats();
+  updateCardInPlace(idx);
+}
+
+function updateCardInPlace(idx) {
+  const item = ALL_ITEMS[idx];
+  const st   = itemState[idx];
+  const isbn = getEffectiveIsbn(idx);
+  const card = document.getElementById('card' + idx);
+  if (!card) return;
+
+  // Bordo/ombra card
+  card.className = 'card' + (isbn ? ' has-isbn' : '') + (st.source === 'manual' && isbn ? ' manual-set' : '');
+
+  // Chip ISBN sull immagine
+  const imgWrap = card.querySelector('.card-img-wrap');
+  let chip = imgWrap ? imgWrap.querySelector('.card-isbn-chip') : null;
+  if (isbn) {
+    if (!chip) { chip = document.createElement('div'); imgWrap.appendChild(chip); }
+    chip.className = 'card-isbn-chip' + (st.source === 'manual' ? ' manual' : '');
+    chip.textContent = isbn;
+  } else {
+    if (chip) chip.remove();
+  }
+
+  // Campo input ISBN
+  const inp = document.getElementById('ii' + idx);
+  if (inp) {
+    inp.className = 'isbn-input' + (isbn ? ' set' : '');
+    inp.placeholder = isbn ? isbn : 'ISBN manuale…';
+    inp.value = st.manualIsbn;
+  }
+
+  // Pulsante cancella ISBN
+  const isbnRow = inp ? inp.parentElement : null;
+  if (isbnRow) {
+    let bClear = isbnRow.querySelector('.bclear-card');
+    if (st.manualIsbn && !bClear) {
+      bClear = document.createElement('button');
+      bClear.className = 'bclear-card'; bClear.textContent = '✕'; bClear.title = 'Cancella ISBN';
+      bClear.onclick = () => clearIsbn(idx);
+      isbnRow.appendChild(bClear);
+    } else if (!st.manualIsbn && bClear) {
+      bClear.remove();
+    }
+  }
+
+  // Link Google ISBN: aggiorna href e stile
+  const lG = document.getElementById('gl' + idx);
+  if (lG) {
+    if (isbn) {
+      lG.className = 'lnk lnk-google-isbn';
+      lG.href = `https://www.google.com/search?q=${encodeURIComponent(isbn)}`;
+      lG.title = `Cerca ISBN ${isbn} su Google`;
+    } else {
+      lG.className = 'lnk lnk-google-title';
+      lG.href = `https://www.google.com/search?q=${encodeURIComponent(item.title + ' ISBN')}`;
+      lG.title = `Cerca "${item.title} ISBN" su Google`;
+    }
+  }
+}
+
+function ebayUrl(title) { return `https://www.ebay.it/sch/i.html?_nkw=${encodeURIComponent(title.substring(0, 80))}&_sacat=267&LH_PrefLoc=1`; }
+
+// ─── STATS ────────────────────────────────────────────
+function updateStats() {
+  const visible = getVisibleItems();
+  let isbnC = 0, priceC = 0;
+  visible.forEach(item => { const i = ALL_ITEMS.indexOf(item); if (getEffectiveIsbn(i)) isbnC++; if (itemState[i].manualPrice) priceC++; });
+  const maxH = visible.length ? Math.max(...visible.map(i => i.hearts)) : 0;
+  setText('sTot', visible.length); setText('sIsbn', isbnC); setText('sMiss', visible.length - isbnC);
+  setText('sMaxHeart', maxH); setText('sPriceEdited', priceC);
+  setText('hTot', visible.length); setText('hIsbn', isbnC); setText('hMiss', visible.length - isbnC); setText('hMinHeart', heartThreshold);
+  document.getElementById('btnExport').disabled = visible.length === 0;
+}
+function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+
+// ─── FILTER / VIEW ────────────────────────────────────
+function setFilter(f) {
+  currentFilter = f;
+  ['fAll','fHasIsbn','fNoIsbn'].forEach(id => { const b = document.getElementById(id); if (b) b.className = 'filter-btn'; });
+  const map = { all:'fAll', hasIsbn:'fHasIsbn', noIsbn:'fNoIsbn' };
+  const btn = document.getElementById(map[f]);
+  if (btn) btn.className = 'filter-btn' + (f === 'noIsbn' ? ' active-gold' : ' active');
+  renderItems();
+}
+function setView(v) {
+  currentView = v;
+  document.getElementById('vGrid').className = 'view-btn' + (v === 'grid' ? ' active' : '');
+  document.getElementById('vList').className = 'view-btn' + (v === 'list' ? ' active' : '');
+  renderItems();
+}
+
+// ─── SESSION ──────────────────────────────────────────
+function saveSession() {
+  if (!ALL_ITEMS.length) return;
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ items: ALL_ITEMS, state: itemState, heartThreshold, totalFilesLoaded, savedAt: new Date().toISOString() }));
+    updateSessionStatus(); showToast('✓ Sessione salvata');
+  } catch(e) { showToast('⚠ Spazio insufficiente nel browser', true); }
+}
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) { showToast('Nessuna sessione salvata', true); return; }
+    const s = JSON.parse(raw);
+    if (!s.items || !s.state) { showToast('Sessione corrotta', true); return; }
+    if (s.heartThreshold !== undefined) { heartThreshold = s.heartThreshold; document.getElementById('heartThreshold').value = heartThreshold; }
+    if (s.totalFilesLoaded) totalFilesLoaded = s.totalFilesLoaded;
+    initApp(s.items, s.state);
+    showToast(`✓ Sessione ripristinata (${s.items.length} articoli)`);
+  } catch(e) { showToast('Errore caricamento sessione', true); }
+}
+function clearSession() {
+  if (!confirm('Eliminare la sessione?')) return;
+  localStorage.removeItem(SESSION_KEY); updateSessionStatus(); showToast('Sessione eliminata');
+}
+function updateSessionStatus() {
+  const raw = localStorage.getItem(SESSION_KEY);
+  const el = document.getElementById('sessionStatus');
+  if (!raw) { if (el) el.textContent = 'Nessuna sessione salvata'; return; }
+  try {
+    const s = JSON.parse(raw);
+    if (el) el.innerHTML = `Ultima sessione: <strong>${s.items ? s.items.length : 0} articoli</strong> — ${new Date(s.savedAt).toLocaleString('it-IT')}`;
+  } catch(e) { if (el) el.textContent = 'Sessione presente'; }
+}
+
+// ─── EXCEL EXPORT ─────────────────────────────────────
+function exportExcel() {
+  const visible = getVisibleItems();
+  const rows = [['Titolo','Condizione','Prezzo Vinted','Prezzo Effettivo','❤ Like','Link Vinted','Cerca su eBay','ISBN','Verifica ISBN','Fonte ISBN']];
+
+  visible.forEach(item => {
+    const idx  = ALL_ITEMS.indexOf(item);
+    const isbn = getEffectiveIsbn(idx);
+    const st   = itemState[idx];
+    rows.push([
+      item.title,
+      item.condition || '',
+      item.price || '',
+      getEffectivePrice(idx),
+      item.hearts,
+      item.link || '',   // col F — Vinted (hyperlink below)
+      '',                // col G — eBay (formula)
+      isbn,              // col H
+      '',                // col I — Google ISBN (formula)
+      st.source === 'manual' ? 'Manuale' : (item.isbn ? 'Automatico' : '')
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:50},{wch:18},{wch:13},{wch:13},{wch:6},{wch:36},{wch:30},{wch:16},{wch:36},{wch:12}];
+
+  for (let r = 2; r <= rows.length; r++) {
+    const item = visible[r - 2];
+
+    // F — Vinted link
+    if (item.link) {
+      ws[XLSX.utils.encode_cell({r: r-1, c: 5})] = { f: `HYPERLINK("${item.link}","Vinted")`, t: 's' };
+    }
+    // G — eBay search link
+    ws[XLSX.utils.encode_cell({r: r-1, c: 6})] = { f: `HYPERLINK("${ebayUrl(item.title)}","Cerca su eBay")`, t: 's' };
+    // I — Google ISBN
+    ws[XLSX.utils.encode_cell({r: r-1, c: 8})] = { f: `IF(H${r}="","",HYPERLINK("https://www.google.com/search?q="&H${r},H${r}))`, t: 's' };
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Vinted ISBN');
+  XLSX.writeFile(wb, 'vinted_isbn.xlsx');
+  showToast('✓ Excel esportato');
+}
+
+// ─── TOAST ────────────────────────────────────────────
+function showToast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isErr ? ' error' : '') + ' show';
+  setTimeout(() => t.className = 'toast' + (isErr ? ' error' : ''), 3200);
+}
+
+// ─── BOOT ─────────────────────────────────────────────
+updateSessionStatus();
+(function() {
+  const raw = localStorage.getItem(SESSION_KEY);
+  if (raw) {
+    try {
+      const s = JSON.parse(raw);
+      if (s.items && s.items.length > 0) {
+        const hint = document.createElement('div');
+        hint.style.cssText = 'margin-top:16px;padding:10px 16px;background:#1a1e2a;border:1px solid #09b3a0;border-radius:8px;font-size:12px;color:#09b3a0';
+        hint.textContent = `💾 Trovata sessione con ${s.items.length} articoli — clicca "Riprendi sessione salvata" per continuare`;
+        document.getElementById('loadSection').appendChild(hint);
+      }
+    } catch(e) {}
+  }
+})();
+</script>
+</body>
+</html>

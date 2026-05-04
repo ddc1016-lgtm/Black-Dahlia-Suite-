@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="it">
+<head><script>
+(function(){
+  // Store original setItem to avoid recursive loop
+  var _origSet = Storage.prototype.setItem;
+  
+  // Override setItem to sync to parent
+  Storage.prototype.setItem = function(key, value){
+    _origSet.call(this, key, value);
+    try{ window.parent.postMessage({type:'SYNC', key:key, value:value}, '*'); }catch(e){}
+  };
+
+  // Receive data from parent (use original to avoid loop)
+  window.addEventListener('message', function(e){
+    if(e.data && e.data.type === 'LOAD_KEY'){
+      try{ _origSet.call(localStorage, e.data.key, e.data.value); }catch(ex){}
+    }
+  });
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import Pipeline</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#050a0e;font-family:'IBM Plex Sans',sans-serif;min-height:100vh;padding:28px 16px 48px;display:flex;flex-direction:column;align-items:center}
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-track{background:#0a1018}
+  ::-webkit-scrollbar-thumb{background:#1e3a4a;border-radius:3px}
+
+  /* Stepper */
+  #stepper{display:flex;align-items:center;gap:8px;margin-bottom:28px;padding:10px 20px;background:#080f14;border:1px solid #1a2a35;border-radius:10px}
+  .step-dot{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:monospace;background:#1a2a35;color:#3a5a6a;transition:all .3s}
+  .step-dot.active{background:#6ee7b7;color:#050a0e}
+  .step-dot.done{background:#34d399;color:#050a0e}
+  .step-label{font-size:12px;color:#3a5a6a;font-family:monospace;transition:color .3s}
+  .step-label.active{color:#6ee7b7}
+  .step-sep{width:32px;height:1px;background:#1a2a35}
+
+  /* Card */
+  .card{background:#080f14;border:1px solid #1a2a35;border-radius:14px;padding:32px 28px;max-width:780px;width:100%;box-shadow:0 32px 64px rgba(0,0,0,.7)}
+  .card-wide{max-width:1100px}
+  h1{font-size:22px;font-weight:700;color:#e2e8f0;letter-spacing:-.5px;margin-bottom:4px}
+  .sub{font-size:13px;color:#4a6070;font-family:monospace;margin-bottom:24px}
+
+  /* Dropzone */
+  .drop{border:2px dashed #2e3a4a;border-radius:10px;padding:22px 20px;cursor:pointer;text-align:center;background:#080f14;transition:all .2s}
+  .drop:hover,.drop.drag{border-color:#6ee7b7;background:#0d2a20}
+  .drop.done{border-color:#34d399;border-style:solid;background:#0a1f18}
+  .drop-icon{font-size:22px;margin-bottom:6px}
+  .drop-name{font-weight:700;color:#94a3b8;font-size:13px}
+  .drop-name.done{color:#34d399}
+  .drop-hint{color:#4a5568;font-size:11px;margin-top:3px;font-family:monospace}
+
+  /* Grid */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+  .field-label{font-size:11px;color:#4a6070;font-family:monospace;margin-bottom:6px;text-transform:uppercase;letter-spacing:.8px}
+
+  /* Stats */
+  .stats-row{display:flex;gap:20px;margin-bottom:20px;padding:14px 20px;background:#050a0e;border-radius:8px;border:1px solid #1a2a35}
+  .stat{display:flex;flex-direction:column;gap:2px}
+  .stat-n{font-size:22px;font-weight:700;color:#60a5fa;font-family:monospace}
+  .stat-l{font-size:11px;color:#4a6070;font-family:monospace}
+
+  /* Buttons */
+  .btn{background:#6ee7b7;color:#050a0e;border:none;border-radius:8px;padding:12px 24px;font-size:13px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn-outline{background:transparent;color:#6ee7b7;border:1px solid #6ee7b7;border-radius:8px;padding:12px 24px;font-size:13px;font-weight:600;cursor:pointer;font-family:'IBM Plex Sans',sans-serif}
+  .btn-yellow{color:#fbbf24;border-color:#fbbf24}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .spacer{flex:1}
+
+  /* Error */
+  .error-box{background:#1f0a0a;border:1px solid #7f1d1d;color:#f87171;border-radius:8px;padding:10px 14px;font-size:12px;font-family:monospace;margin-bottom:16px;line-height:1.5}
+
+  /* Table */
+  .table-wrap{overflow-x:auto;border-radius:8px;border:1px solid #1a2a35;margin-bottom:16px}
+  table{width:100%;border-collapse:collapse;font-size:12px;font-family:monospace}
+  th{padding:10px 14px;color:#3a6a8a;font-size:11px;font-weight:600;border-bottom:1px solid #1a2a35;text-align:left;white-space:nowrap;background:#080f14;position:sticky;top:0}
+  td{padding:8px 14px;color:#94a3b8;border-bottom:1px solid #0d1a24;background:#050a0e;vertical-align:middle}
+  tr:hover td{background:#0d1a24}
+  tr.excluded{opacity:.35}
+
+  /* Editable */
+  .editable{background:transparent;border:none;color:#e2e8f0;font-family:monospace;font-size:12px;width:100%;outline:none;padding:2px 0;border-bottom:1px dashed #2d3748}
+  .editable:focus{border-bottom-color:#6ee7b7}
+  .editable-green{color:#6ee7b7}
+
+  /* Toggle btn */
+  .toggle-btn{border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+  .toggle-btn.active{background:#0a1a24;border:1px solid #1e3a5f;color:#60a5fa}
+  .toggle-btn.excluded-btn{background:#1f0a0a;border:1px solid #7f1d1d;color:#f87171}
+
+  /* Select */
+  .status-select{background:#0a1018;color:#60a5fa;border:1px solid #1e3a5f;border-radius:4px;font-size:11px;padding:2px 4px;font-family:monospace}
+
+  /* Badge */
+  .badge{border-radius:4px;padding:2px 8px;font-size:11px;font-family:monospace;white-space:nowrap}
+  .badge-green{background:#0a1f18;color:#34d399}
+  .badge-red{background:#1f0a0a;color:#f87171}
+
+  /* Reupload section */
+  .reupload-box{margin-bottom:16px;padding:12px 16px;background:#080f14;border:1px solid #1a2a35;border-radius:8px}
+  .reupload-hint{font-size:12px;color:#6b7280;font-family:monospace;margin-bottom:8px}
+  .reupload-inner{display:flex;align-items:center;gap:12px}
+  .reupload-or{color:#4a5568;font-size:11px}
+
+  .step-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .step-header-badges{display:flex;gap:10px;align-items:center}
+
+  /* Hidden */
+  .hidden{display:none}
+</style>
+</head>
+<body>
+
+<!-- STEPPER -->
+<div id="stepper">
+  <div class="step-dot active" id="dot1">1</div>
+  <span class="step-label active" id="lbl1">Carica file</span>
+  <div class="step-sep"></div>
+  <div class="step-dot" id="dot2">2</div>
+  <span class="step-label" id="lbl2">Revisione</span>
+  <div class="step-sep"></div>
+  <div class="step-dot" id="dot3">3</div>
+  <span class="step-label" id="lbl3">Export finale</span>
+</div>
+
+<!-- STEP 1 -->
+<div class="card" id="step1">
+  <h1>Import Pipeline</h1>
+  <p class="sub">Carica il file venduti eBay e opzionalmente il file ISBN da escludere</p>
+
+  <div class="grid2">
+    <div>
+      <div class="field-label">File venduti eBay <span style="color:#e53e3e">*</span></div>
+      <div class="drop" id="drop-ebay" onclick="document.getElementById('fi-ebay').click()"
+           ondragover="dragOver(event,'drop-ebay')" ondragleave="dragLeave('drop-ebay')" ondrop="dropFile(event,'ebay')">
+        <input type="file" id="fi-ebay" accept=".xlsx,.xls" style="display:none" onchange="loadFile(this,'ebay')">
+        <div class="drop-icon" id="icon-ebay">⬆</div>
+        <div class="drop-name" id="name-ebay">Venduti eBay (xlsx)</div>
+        <div class="drop-hint">Obbligatorio · colonne B C D E J</div>
+      </div>
+    </div>
+    <div>
+      <div class="field-label">ISBN da escludere <span style="color:#718096">(opzionale)</span></div>
+      <div class="drop" id="drop-isbn" onclick="document.getElementById('fi-isbn').click()"
+           ondragover="dragOver(event,'drop-isbn')" ondragleave="dragLeave('drop-isbn')" ondrop="dropFile(event,'isbn')">
+        <input type="file" id="fi-isbn" accept=".xlsx,.xls" style="display:none" onchange="loadFile(this,'isbn')">
+        <div class="drop-icon" id="icon-isbn">⬆</div>
+        <div class="drop-name" id="name-isbn">ISBN Export (xlsx)</div>
+        <div class="drop-hint">Opzionale · colonna ISBN</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="error-box hidden" id="err1"></div>
+
+  <div class="stats-row hidden" id="stats1">
+    <div class="stat"><span class="stat-n" id="stat-total">0</span><span class="stat-l">righe con ISBN</span></div>
+    <div class="stat"><span class="stat-n" id="stat-excl" style="color:#f87171">0</span><span class="stat-l">match da escludere</span></div>
+    <div class="stat"><span class="stat-n" id="stat-net" style="color:#6ee7b7">0</span><span class="stat-l">righe da importare</span></div>
+  </div>
+
+  <button class="btn" id="btn-proceed1" disabled onclick="proceedToReview()">Procedi alla revisione →</button>
+</div>
+
+<!-- STEP 2 -->
+<div class="card card-wide hidden" id="step2">
+  <div class="step-header">
+    <div>
+      <h1>Revisione</h1>
+      <p class="sub">Modifica le righe · escludi quelle indesiderate · poi procedi</p>
+    </div>
+    <div class="step-header-badges">
+      <span class="badge badge-green" id="badge-active">✓ 0 attive</span>
+      <span class="badge badge-red" id="badge-excl">✕ 0 escluse</span>
+    </div>
+  </div>
+
+  <div class="reupload-box">
+    <div class="reupload-hint">Hai scaricato l'anteprima Excel, modificato e vuoi ricaricarlo?</div>
+    <div class="reupload-inner">
+      <div class="drop" style="flex:0 0 220px;padding:12px 16px" id="drop-reup" onclick="document.getElementById('fi-reup').click()"
+           ondragover="dragOver(event,'drop-reup')" ondragleave="dragLeave('drop-reup')" ondrop="dropFile(event,'reup')">
+        <input type="file" id="fi-reup" accept=".xlsx" style="display:none" onchange="loadFile(this,'reup')">
+        <div class="drop-icon" id="icon-reup" style="font-size:16px">⬆</div>
+        <div class="drop-name" id="name-reup">Ricarica Excel modificato</div>
+        <div class="drop-hint">anteprima_import.xlsx</div>
+      </div>
+      <div class="reupload-or">oppure modifica<br>direttamente qui sotto</div>
+    </div>
+  </div>
+
+  <div class="error-box hidden" id="err2"></div>
+
+  <div class="table-wrap" style="max-height:420px;overflow-y:auto">
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align:center"></th>
+          <th style="text-align:center">#</th>
+          <th>Titolo</th>
+          <th>ISBN</th>
+          <th>Prezzo €</th>
+          <th id="th-price" onclick="sortByPrice()" style="cursor:pointer;user-select:none">Prezzo cent <span id="sort-arrow">↕</span></th>
+          <th>status_ids</th>
+          <th>🔍</th>
+        </tr>
+      </thead>
+      <tbody id="review-tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-outline" onclick="goStep(1)">← Torna indietro</button>
+    <button class="btn-outline btn-yellow" onclick="exportPreviewExcel()">↓ Scarica anteprima Excel</button>
+    <div class="spacer"></div>
+    <button class="btn" id="btn-proceed2" onclick="goStep(3)">Valida e procedi →</button>
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div class="card hidden" id="step3">
+  <h1>Export finale</h1>
+  <p class="sub">Tutto pronto · scarica il CSV per l'import</p>
+
+  <div class="stats-row">
+    <div class="stat"><span class="stat-n" id="stat3-active" style="color:#6ee7b7">0</span><span class="stat-l">righe nel CSV</span></div>
+    <div class="stat"><span class="stat-n" id="stat3-excl" style="color:#f87171">0</span><span class="stat-l">righe escluse</span></div>
+  </div>
+
+  <div class="table-wrap" style="max-height:380px;overflow-y:auto">
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align:center">#</th>
+          <th>Titolo</th>
+          <th>ISBN</th>
+          <th id="th-price" onclick="sortByPrice()" style="cursor:pointer;user-select:none">Prezzo cent <span id="sort-arrow">↕</span></th>
+          <th>status_ids</th>
+        </tr>
+      </thead>
+      <tbody id="final-tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-outline" onclick="goStep(2)">← Modifica ancora</button>
+    <div class="spacer"></div>
+    <button class="btn" onclick="exportFinalCSV()">↓ Scarica CSV finale</button>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let sortDir = 1; // 1 = asc, -1 = desc
+let ebayRows = [];
+let excludedISBNs = [];
+let reviewRows = [];
+let currentStep = 1;
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function normalizeISBN(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const s = String(v).replace(/[^0-9X]/gi, '').trim();
+  return s.length >= 10 ? s : null;
+}
+
+function readSheet(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        // Extract formula-based hyperlinks from col I (index 8)
+        const linkMap = {};
+        Object.keys(ws).forEach(addr => {
+          if (addr[0] === 'I' && ws[addr].f) {
+            const m = ws[addr].f.match(/HYPERLINK\("([^"]+)"/);
+            if (m) {
+              const rowNum = parseInt(addr.slice(1)) - 1; // 0-based
+              linkMap[rowNum] = m[1];
+            }
+          }
+        });
+        resolve({ data, linkMap });
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = () => reject(new Error('Lettura fallita'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function processEbayRows(sheetData, linkMap) {
+  const headers = sheetData[0].map(h => String(h).trim());
+  const colB = headers.indexOf('Titolo');
+  const colD = headers.indexOf('Condizione');
+  const colE = headers.indexOf('Prezzo (€)');
+  const colI = headers.indexOf('Link eBay');
+  const colJ = headers.indexOf('ISBN');
+  if (colB === -1 || colE === -1 || colJ === -1)
+    throw new Error('Colonne mancanti. Trovate: ' + headers.join(', '));
+
+  const rows = [];
+  for (let i = 1; i < sheetData.length; i++) {
+    const row = sheetData[i];
+    if (!row || row.every(v => v === '' || v === undefined)) continue;
+    const isbn = normalizeISBN(row[colJ]);
+    if (!isbn) continue;
+    const prezzo = parseFloat(String(row[colE] ?? '').replace(',', '.'));
+    const prezzoCent = isNaN(prezzo) ? 0 : Math.round(prezzo * 0.2 * 100 / 100) * 100;
+    const condizione = colD !== -1 ? String(row[colD] ?? '').trim() : '';
+    const ebayUrl = (linkMap && linkMap[i]) ? linkMap[i] : '';
+    rows.push({
+      titolo: String(row[colB] ?? ''),
+      prezzoCent,
+      condizione,
+      prezzoEuro: isNaN(prezzo) ? '' : prezzo,
+      isbn,
+      ebayUrl,
+      status_ids: condizione === 'B' ? '3|2|1|6' : '2|1|6',
+      excluded: false,
+      reason: ''
+    });
+  }
+  return rows;
+}
+
+function applyExclusions(rows, excISBNs) {
+  const excSet = new Set(excISBNs.map(normalizeISBN).filter(Boolean));
+  return rows.map(r => ({
+    ...r,
+    excluded: excSet.has(r.isbn),
+    reason: excSet.has(r.isbn) ? 'ISBN già presente in export' : ''
+  }));
+}
+
+// ── Drag & Drop ────────────────────────────────────────────────────────────
+function dragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add('drag'); }
+function dragLeave(id) { document.getElementById(id).classList.remove('drag'); }
+function dropFile(e, type) {
+  e.preventDefault();
+  const id = type === 'ebay' ? 'drop-ebay' : type === 'isbn' ? 'drop-isbn' : 'drop-reup';
+  dragLeave(id);
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file, type);
+}
+function loadFile(input, type) {
+  const file = input.files[0];
+  if (file) handleFile(file, type);
+  input.value = '';
+}
+
+function setDropDone(id, iconId, nameId, filename) {
+  const el = document.getElementById(id);
+  el.classList.add('done'); el.classList.remove('drag');
+  document.getElementById(iconId).textContent = '✓';
+  const nameEl = document.getElementById(nameId);
+  nameEl.textContent = filename;
+  nameEl.classList.add('done');
+}
+
+function showError(elId, msg) {
+  const el = document.getElementById(elId);
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+function hideError(elId) { document.getElementById(elId).classList.add('hidden'); }
+
+async function handleFile(file, type) {
+  hideError('err1'); hideError('err2');
+  try {
+    const data = await readSheet(file);
+    if (type === 'ebay') {
+      ebayRows = processEbayRows(data.data, data.linkMap);
+      setDropDone('drop-ebay', 'icon-ebay', 'name-ebay', file.name);
+      updateStep1Stats();
+      document.getElementById('btn-proceed1').disabled = false;
+    } else if (type === 'isbn') {
+      const headers = data.data[0].map(h => String(h).trim());
+      const colA = headers.indexOf('ISBN');
+      const isbns = [];
+      for (let i = 1; i < data.data.length; i++) {
+        const v = colA !== -1 ? data.data[i][colA] : data.data[i][0];
+        const n = normalizeISBN(v);
+        if (n) isbns.push(n);
+      }
+      excludedISBNs = isbns;
+      setDropDone('drop-isbn', 'icon-isbn', 'name-isbn', file.name);
+      updateStep1Stats();
+    } else if (type === 'reup') {
+      const headers = data.data[0].map(h => String(h).trim());
+      const colTitolo = headers.indexOf('Titolo');
+      const colISBN = headers.indexOf('ISBN');
+      const colCent = headers.indexOf('Prezzo cent (20%)');
+      const colCond = headers.indexOf('Condizione');
+      if (colTitolo === -1 || colISBN === -1) throw new Error('Colonne Titolo/ISBN non trovate nel file ricaricato');
+      const updated = [];
+      for (let i = 1; i < data.data.length; i++) {
+        const row = data.data[i];
+        if (!row || row.every(v => v === '' || v === undefined)) continue;
+        const isbn = normalizeISBN(row[colISBN]);
+        if (!isbn) continue;
+        const condizione = colCond !== -1 ? String(row[colCond] ?? '').trim() : '';
+        updated.push({
+          titolo: String(row[colTitolo] ?? ''),
+          prezzoCent: colCent !== -1 ? Number(row[colCent]) || 0 : 0,
+          condizione, prezzoEuro: '', isbn, ebayUrl: '',
+          status_ids: condizione === 'B' ? '3|2|1|6' : '2|1|6',
+          excluded: false, reason: ''
+        });
+      }
+      reviewRows = applyExclusions(updated, excludedISBNs);
+      setDropDone('drop-reup', 'icon-reup', 'name-reup', file.name);
+      renderReviewTable();
+    }
+  } catch(e) {
+    showError(type === 'reup' ? 'err2' : 'err1', e.message);
+  }
+}
+
+function updateStep1Stats() {
+  const total = ebayRows.length;
+  const excl = excludedISBNs.length > 0
+    ? applyExclusions(ebayRows, excludedISBNs).filter(r => r.excluded).length : 0;
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-excl').textContent = excl;
+  document.getElementById('stat-net').textContent = total - excl;
+  document.getElementById('stats1').classList.remove('hidden');
+}
+
+// ── Step navigation ────────────────────────────────────────────────────────
+function goStep(n) {
+  document.getElementById('step1').classList.add('hidden');
+  document.getElementById('step2').classList.add('hidden');
+  document.getElementById('step3').classList.add('hidden');
+  document.getElementById('step' + n).classList.remove('hidden');
+
+  for (let i = 1; i <= 3; i++) {
+    const dot = document.getElementById('dot' + i);
+    const lbl = document.getElementById('lbl' + i);
+    dot.className = 'step-dot' + (i < n ? ' done' : i === n ? ' active' : '');
+    lbl.className = 'step-label' + (i === n ? ' active' : '');
+  }
+  currentStep = n;
+
+  if (n === 3) renderFinalTable();
+}
+
+function proceedToReview() {
+  reviewRows = applyExclusions(ebayRows, excludedISBNs);
+  renderReviewTable();
+  goStep(2);
+}
+
+// ── Review Table ───────────────────────────────────────────────────────────
+function sortByPrice() {
+  sortDir *= -1;
+  reviewRows.sort((a, b) => (a.prezzoCent - b.prezzoCent) * sortDir);
+  document.getElementById('sort-arrow').textContent = sortDir === 1 ? '↑' : '↓';
+  renderReviewTable(false);
+}
+
+function renderReviewTable(resetSort) {
+  if (resetSort !== false) {
+    sortDir = 1;
+    const arrow = document.getElementById('sort-arrow');
+    if (arrow) arrow.textContent = '↕';
+  }
+  const tbody = document.getElementById('review-tbody');
+  tbody.innerHTML = '';
+  reviewRows.forEach((row, idx) => {
+    const tr = document.createElement('tr');
+    if (row.excluded) tr.classList.add('excluded');
+    tr.id = 'row-' + idx;
+    tr.innerHTML = `
+      <td style="text-align:center;width:36px">
+        <button class="toggle-btn ${row.excluded ? 'excluded-btn' : 'active'}"
+          onclick="toggleExclude(${idx})" title="${row.excluded ? 'Riattiva' : 'Escludi'}">
+          ${row.excluded ? '+' : '−'}
+        </button>
+      </td>
+      <td style="text-align:center;color:#3a5a6a;width:32px">${idx + 1}</td>
+      <td style="max-width:320px;min-width:180px">
+        <input class="editable" value="${esc(row.titolo)}" onchange="updateRow(${idx},'titolo',this.value)">
+      </td>
+      <td style="width:140px">
+        <input class="editable" value="${esc(row.isbn)}" onchange="updateRow(${idx},'isbn',this.value)">
+      </td>
+      <td style="width:80px;color:#94a3b8">${row.prezzoEuro || '—'}</td>
+      <td style="width:100px">
+        <input class="editable editable-green" type="number" value="${row.prezzoCent}"
+          onchange="updateRow(${idx},'prezzoCent',parseInt(this.value)||0)">
+      </td>
+      <td style="width:110px">
+        <select class="status-select" onchange="updateRow(${idx},'status_ids',this.value)">
+          <option value="2|1|6" ${row.status_ids === '2|1|6' ? 'selected' : ''}>2|1|6</option>
+          <option value="3|2|1|6" ${row.status_ids === '3|2|1|6' ? 'selected' : ''}>3|2|1|6</option>
+        </select>
+      </td>
+      <td style="width:40px;text-align:center">
+        <a href="https://www.google.com/search?q=${esc(row.isbn)}" target="_blank"
+           style="color:#60a5fa;text-decoration:none;font-size:14px">🔍</a>
+      </td>
+      <td style="width:48px;text-align:center">
+        ${row.ebayUrl ? '<a href="' + row.ebayUrl + '" target="_blank" style="color:#fb923c;text-decoration:none;font-size:14px">🛒</a>' : '—'}
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  updateReviewBadges();
+}
+
+function esc(v) {
+  return String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function updateRow(idx, field, value) {
+  reviewRows[idx][field] = value;
+}
+
+function autoStatus(idx, condVal) {
+  const s = condVal.trim() === 'B' ? '3|2|1|6' : '2|1|6';
+  reviewRows[idx].status_ids = s;
+  const sel = document.querySelector(`#row-${idx} .status-select`);
+  if (sel) sel.value = s;
+}
+
+function toggleExclude(idx) {
+  reviewRows[idx].excluded = !reviewRows[idx].excluded;
+  reviewRows[idx].reason = reviewRows[idx].excluded ? 'Escluso manualmente' : '';
+  const tr = document.getElementById('row-' + idx);
+  const btn = tr.querySelector('.toggle-btn');
+  if (reviewRows[idx].excluded) {
+    tr.classList.add('excluded');
+    btn.classList.remove('active'); btn.classList.add('excluded-btn');
+    btn.textContent = '+'; btn.title = 'Riattiva';
+  } else {
+    tr.classList.remove('excluded');
+    btn.classList.remove('excluded-btn'); btn.classList.add('active');
+    btn.textContent = '−'; btn.title = 'Escludi';
+  }
+  updateReviewBadges();
+}
+
+function updateReviewBadges() {
+  const active = reviewRows.filter(r => !r.excluded).length;
+  const excl = reviewRows.filter(r => r.excluded).length;
+  document.getElementById('badge-active').textContent = '✓ ' + active + ' attive';
+  document.getElementById('badge-excl').textContent = '✕ ' + excl + ' escluse';
+  document.getElementById('btn-proceed2').textContent = 'Valida e procedi (' + active + ' righe) →';
+}
+
+// ── Final table ────────────────────────────────────────────────────────────
+function renderFinalTable() {
+  const active = reviewRows.filter(r => !r.excluded);
+  const excl = reviewRows.filter(r => r.excluded).length;
+  document.getElementById('stat3-active').textContent = active.length;
+  document.getElementById('stat3-excl').textContent = excl;
+  const tbody = document.getElementById('final-tbody');
+  tbody.innerHTML = '';
+  active.forEach((row, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="text-align:center;color:#3a5a6a">${idx + 1}</td>
+      <td style="max-width:320px">${esc(row.titolo)}</td>
+      <td>${esc(row.isbn)}</td>
+      <td style="color:#6ee7b7">${row.prezzoCent}</td>
+      <td style="color:#60a5fa">${esc(row.status_ids)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Export Preview Excel ───────────────────────────────────────────────────
+function exportPreviewExcel() {
+  const active = reviewRows.filter(r => !r.excluded);
+  const wsData = [
+    ['#', 'Titolo', 'ISBN', 'Prezzo €', 'Prezzo cent (20%)', 'status_ids', 'Google ISBN', 'Link eBay'],
+    ...active.map((r, i) => [
+      i + 1, r.titolo, r.isbn, r.prezzoEuro, r.prezzoCent, r.status_ids,
+      { f: `HYPERLINK("https://www.google.com/search?q=${r.isbn}","🔍 Cerca")` },
+      r.ebayUrl ? { f: `HYPERLINK("${r.ebayUrl}","🛒 eBay")` } : ''
+    ])
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{wch:4},{wch:60},{wch:16},{wch:10},{wch:18},{wch:14},{wch:12},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Anteprima');
+  XLSX.writeFile(wb, 'anteprima_import.xlsx');
+}
+
+// ── Export Final CSV ───────────────────────────────────────────────────────
+const TEMPLATE = {
+  enabled:true,sniper_enabled:true,auto_buy_mode:'sniper',auto_buy_account_ids:'',
+  reservation_enabled:false,name:'',locale:'',marketplace:'vinted',marketplace_query:'',
+  image_search_enabled:false,image_search_storage_key:'',
+  image_search_base_url:'https://www.vinted.fr',image_search_mode:'filter',
+  tags:'',plugin_config:'[]',
+  discord_channels:'[{"guild_id":"1375368167538561045","channel_id":"1494480614265454653"}]',
+  isbn_link_templates:'[]',category_ids:'',brand_ids:'',brand_collection_ids:'',
+  status_ids:'2|1|6',country_ids:'',size_ids:'',material_ids:'',color_ids:'',
+  internal_memory_capacity_ids:'',sim_lock_ids:'',computer_cpu_line_ids:'',
+  computer_operating_system_ids:'',computer_ram_ids:'',computer_storage_capacity_ids:'',
+  keyboard_layout_ids:'',laptop_charger_included_ids:'',laptop_display_size_ids:'',
+  video_game_platform_ids:'',video_game_rating_ids:'',
+  price_min_cents:'',price_max_cents:'',
+  title_all:'',title_any:'',title_blacklist:'',
+  description_all:'',description_any:'',description_blacklist:'',
+  language_book_ids:'',isbn_terms:'',isbn_blacklist:'',
+  seller_feedback_min:'',scope:'user',
+  monitor_recheck_delay_seconds:30,monitor_threshold_seconds:30,monitor_sample_rate:1
+};
+
+function exportSecondCSV(rows) {
+  const headers = Object.keys(TEMPLATE);
+  const escape = v => {
+    const s = (v === null || v === undefined) ? '' : String(v);
+    return (s.includes(',') || s.includes('"') || s.includes('\n'))
+      ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const lines = [headers.join(',')];
+  rows.filter(r => !r.excluded).forEach(row => {
+    const price40 = Math.round(row.prezzoEuro * 0.4 * 100 / 100) * 100;
+    const rec = { ...TEMPLATE,
+      sniper_enabled: false,
+      auto_buy_mode: 'off',
+      name: row.titolo,
+      price_max_cents: price40,
+      isbn_terms: row.isbn,
+      status_ids: '3|2|1|6'
+    };
+    lines.push(headers.map(h => escape(rec[h])).join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'import_secondario.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportFinalCSV() {
+  const headers = Object.keys(TEMPLATE);
+  const escape = v => {
+    const s = (v === null || v === undefined) ? '' : String(v);
+    return (s.includes(',') || s.includes('"') || s.includes('\n'))
+      ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const lines = [headers.join(',')];
+  reviewRows.filter(r => !r.excluded).forEach(row => {
+    const rec = { ...TEMPLATE, name: row.titolo, price_max_cents: row.prezzoCent,
+                  isbn_terms: row.isbn, status_ids: row.status_ids };
+    lines.push(headers.map(h => escape(rec[h])).join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'import_finale.csv'; a.click();
+  URL.revokeObjectURL(url);
+  // Auto-generate second CSV
+  setTimeout(() => exportSecondCSV(reviewRows), 500);
+}
+</script>
+</body>
+</html>
