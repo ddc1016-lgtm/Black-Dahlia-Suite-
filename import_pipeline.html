@@ -2,16 +2,12 @@
 <html lang="it">
 <head><script>
 (function(){
-  // Store original setItem to avoid recursive loop
+  // Storage sync
   var _origSet = Storage.prototype.setItem;
-  
-  // Override setItem to sync to parent
   Storage.prototype.setItem = function(key, value){
     _origSet.call(this, key, value);
     try{ window.parent.postMessage({type:'SYNC', key:key, value:value}, '*'); }catch(e){}
   };
-
-  // Receive data from parent (use original to avoid loop)
   window.addEventListener('message', function(e){
     if(e.data && e.data.type === 'LOAD_KEY'){
       try{ _origSet.call(localStorage, e.data.key, e.data.value); }catch(ex){}

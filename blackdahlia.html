@@ -2,16 +2,12 @@
 <html lang="it">
 <head><script>
 (function(){
-  // Store original setItem to avoid recursive loop
+  // Storage sync
   var _origSet = Storage.prototype.setItem;
-  
-  // Override setItem to sync to parent
   Storage.prototype.setItem = function(key, value){
     _origSet.call(this, key, value);
     try{ window.parent.postMessage({type:'SYNC', key:key, value:value}, '*'); }catch(e){}
   };
-
-  // Receive data from parent (use original to avoid loop)
   window.addEventListener('message', function(e){
     if(e.data && e.data.type === 'LOAD_KEY'){
       try{ _origSet.call(localStorage, e.data.key, e.data.value); }catch(ex){}
@@ -505,16 +501,8 @@ function sincronizzaVinted(){
 
 function undoDesc(pfx){var hist=undoHistory[pfx];if(!hist.length){alert('Nessuna versione precedente.');return;}document.getElementById(pfx+'ResultText').textContent=hist.pop();document.getElementById(pfx+'ResultArea').style.display='block';}
 
-function copyDesc(pfx){var txt=document.getElementById(pfx+'ResultText').textContent,btnId=pfx+'CopyBtn',ok=function(){var b=document.getElementById(btnId);b.textContent='Copiato!';b.classList.add('ok');setTimeout(function(){b.textContent='Copia';b.classList.remove('ok');},2000);};if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(ok).catch(function(){fbCopy(txt,ok);});else fbCopy(txt,ok);}
-function fbCopy(txt,ok){
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(txt).then(function(){if(ok)ok();}).catch(function(){
-      var ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');if(ok)ok();}catch(e){}document.body.removeChild(ta);
-    });
-  } else {
-    var ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');if(ok)ok();}catch(e){}document.body.removeChild(ta);
-  }
-}
+function copyDesc(pfx){var txt=document.getElementById(pfx+'ResultText').textContent,btnId=pfx+'CopyBtn',ok=function(){var b=document.getElementById(btnId);b.textContent='Copiato!';b.classList.add('ok');setTimeout(function(){b.textContent='Copia';b.classList.remove('ok');},2000);};if(navigator.clipboard&&navigator.clipboard.writeText)window.parent.postMessage({type:'COPY',text:txt},'*');ok();else fbCopy(txt,ok);}
+function fbCopy(txt,ok){try{window.parent.postMessage({type:'COPY',text:txt},'*');}catch(e){}if(ok)ok();}
 
 function salvaInArchivio(pfx){
   var testo=document.getElementById(pfx+'ResultText').textContent;if(!testo)return;
@@ -585,7 +573,7 @@ function esportaTutto(){
     showSyncMsg('Copia il testo e salvalo.','ok');
   }
 }
-function copiaExport(){var ta=document.getElementById('exportText');ta.select();if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(ta.value).then(function(){showSyncMsg('Copiato!','ok');});}
+function copiaExport(){var ta=document.getElementById('exportText');ta.select();window.parent.postMessage({type:'COPY',text:ta.value},'*');showSyncMsg('Copiato!','ok');}
 function importaDaFile(e){
   var file=e.target.files[0];if(!file)return;
   var reader=new FileReader();
