@@ -747,11 +747,8 @@ function editDate(){
 
 async function saveDateToDB(book, date){
   try{
-    var res = await fetch(SUPABASE_URL+'/rest/v1/libri?isbn=eq.'+encodeURIComponent(book.isbn),{
-      method:'PATCH', headers:sbH({'Prefer':'return=minimal'}),
-      body:JSON.stringify({data_vendita: date||null})
-    });
-    if(res.ok){
+    var resD = await _sb.from('libri').update({data_vendita:date||null}).eq('isbn',book.isbn);
+    if(!resD.error){
       book.data_vendita = date;
       // Refresh date in modal
       var dateEl = document.querySelector('.mf-v.editable');
@@ -764,10 +761,8 @@ async function saveDateToDB(book, date){
 async function deleteBook(book){
   if(!confirm('Eliminare "'+( book.titolo||book.isbn)+'" dal database?')) return;
   try{
-    var res = await fetch(SUPABASE_URL+'/rest/v1/libri?isbn=eq.'+encodeURIComponent(book.isbn),{
-      method:'DELETE', headers:sbH()
-    });
-    if(res.ok){
+    var resDel = await _sb.from('libri').delete().eq('isbn',book.isbn);
+    if(!resDel.error){
       document.getElementById('modal').classList.remove('open');
       ALL_BOOKS = ALL_BOOKS.filter(function(b){return b.isbn!==book.isbn;});
       dbISBNs.delete(book.isbn);
@@ -924,8 +919,8 @@ async function startImport(){
   for(var i=0;i<pendingNew.length;i+=BATCH){
     var batch=pendingNew.slice(i,i+BATCH);
     try{
-      var res=await fetch(SUPABASE_URL+'/rest/v1/libri',{method:'POST',headers:sbH({'Prefer':'resolution=merge-duplicates,return=minimal'}),body:JSON.stringify(batch)});
-      if(!res.ok)throw new Error(await res.text());
+      var resImp=await _sb.from('libri').upsert(batch,{onConflict:'isbn'});
+      if(resImp.error) throw new Error(resImp.error.message);
       ok+=batch.length;
       var d=document.createElement('div');d.className='ok';d.textContent='Righe '+(i+1)+'-'+Math.min(i+BATCH,pendingNew.length)+' OK';log.appendChild(d);
     }catch(ex){
