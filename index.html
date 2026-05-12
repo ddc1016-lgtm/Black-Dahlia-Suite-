@@ -10,10 +10,8 @@
   if(!window.auth){alert("App non ancora caricata, riprova tra un secondo.");return;}
   var provider = new firebase.auth.GoogleAuthProvider();
   auth.signInWithPopup(provider).then(function(result){
-    // popup worked
   }).catch(function(e){
     if(e.code==='auth/popup-blocked'||e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request'){
-      // fallback to redirect
       auth.signInWithRedirect(provider).catch(function(e2){alert("Errore: "+e2.message);});
     } else {
       alert("Errore login: "+e.code+" - "+e.message);
@@ -39,6 +37,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 #menuBtn{background:none;border:none;color:var(--gold);font-size:22px;cursor:pointer;padding:4px 6px;line-height:1}
 #hdrTitle{flex:1;font-size:15px;font-weight:700;color:var(--gold);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #syncBadge{font-size:11px;color:#4caf50;white-space:nowrap}
+#refreshBtn{background:none;border:1px solid var(--border);color:var(--muted);font-size:15px;cursor:pointer;
+  padding:5px 9px;border-radius:6px;line-height:1;transition:all .15s;flex-shrink:0}
+#refreshBtn:hover{color:var(--gold);border-color:var(--gold);background:#1a1400}
 #userAvatar{width:30px;height:30px;border-radius:50%;border:1px solid var(--gold2);object-fit:cover;display:none}
 #loginBtn{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#000;border:none;
   border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif}
@@ -59,12 +60,22 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .slbl{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;padding:12px 14px 4px}
 .ni{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;
   border:none;background:none;color:var(--muted);font-family:Georgia,serif;font-size:13px;
-  width:100%;text-align:left;border-left:3px solid transparent;transition:all .15s}
+  width:100%;text-align:left;border-left:3px solid transparent;transition:all .15s;position:relative}
 .ni:hover{background:#1a1400;color:var(--text)}
 .ni.active{background:#1a1400;color:var(--gold);border-left-color:var(--gold)}
 .ni .ic{font-size:17px;width:22px;text-align:center;flex-shrink:0}
 .ni .nn{font-weight:700;display:block}
 .ni .nd{font-size:10px;color:var(--muted);display:block;margin-top:1px}
+
+/* MOVE BUTTONS — shown only in reorder mode */
+.ni .move-btns{display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  gap:2px;flex-direction:column}
+.reorder-mode .ni .move-btns{display:flex}
+.reorder-mode .ni{padding-right:40px}
+.move-btn{background:#1a1a1a;border:1px solid var(--border);color:var(--muted);
+  font-size:10px;padding:2px 5px;border-radius:4px;cursor:pointer;line-height:1.2;
+  font-family:Georgia,serif;transition:all .1s}
+.move-btn:hover{background:#1a1400;color:var(--gold);border-color:var(--gold)}
 
 /* CONTENT */
 #content{flex:1;position:relative;overflow:hidden}
@@ -155,6 +166,7 @@ iframe.apf.active{display:block}
     <button id="menuBtn">☰</button>
     <div id="hdrTitle">⬥ BlackDahlia Suite</div>
     <span id="syncBadge"></span>
+    <button id="refreshBtn" onclick="refreshCurrentApp()" title="Aggiorna app">↺</button>
     <img id="userAvatar" alt="">
     <button id="loginBtn" onclick="doLogin()">Accedi</button>
   </div>
@@ -165,25 +177,34 @@ iframe.apf.active{display:block}
         <!-- Default apps -->
         <button class="ni" data-app="blackdahlia" data-src="blackdahlia.html">
           <span class="ic">📝</span><span><span class="nn">Black Dahlia</span><span class="nd">Descrizioni prodotti</span></span>
+          <span class="move-btns"><button class="move-btn" onclick="moveApp(event,'blackdahlia',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'blackdahlia',1)">▼</button></span>
         </button>
         <button class="ni" data-app="ebay_title" data-src="ebay_title.html">
           <span class="ic">🏷️</span><span><span class="nn">eBay Title</span><span class="nd">Titoli ISBN per eBay</span></span>
+          <span class="move-btns"><button class="move-btn" onclick="moveApp(event,'ebay_title',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'ebay_title',1)">▼</button></span>
         </button>
         <button class="ni" data-app="ebay_isbn" data-src="ebay_isbn.html">
           <span class="ic">📦</span><span><span class="nn">eBay ISBN</span><span class="nd">Gestione ISBN eBay</span></span>
+          <span class="move-btns"><button class="move-btn" onclick="moveApp(event,'ebay_isbn',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'ebay_isbn',1)">▼</button></span>
         </button>
         <button class="ni" data-app="vinted_isbn" data-src="vinted_isbn.html">
           <span class="ic">👗</span><span><span class="nn">Vinted ISBN</span><span class="nd">Gestione ISBN Vinted</span></span>
+          <span class="move-btns"><button class="move-btn" onclick="moveApp(event,'vinted_isbn',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'vinted_isbn',1)">▼</button></span>
         </button>
         <button class="ni" data-app="import_pipeline" data-src="import_pipeline.html">
           <span class="ic">🔄</span><span><span class="nn">Import Pipeline</span><span class="nd">Pipeline importazione</span></span>
+          <span class="move-btns"><button class="move-btn" onclick="moveApp(event,'import_pipeline',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'import_pipeline',1)">▼</button></span>
         </button>
         <button class="ni" data-app="isbn_titoli" data-src="isbn_titoli.html">
           <span class="ic">📚</span><span><span class="nn">ISBN → Titoli</span><span class="nd">Lookup titoli libri</span></span>
+          <span class="move-btns"><button class="move-btn" onclick="moveApp(event,'isbn_titoli',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'isbn_titoli',1)">▼</button></span>
         </button>
       </div>
       <div style="flex:1"></div>
       <div style="border-top:1px solid var(--border);padding:8px 0">
+        <button class="ni" id="reorderBtn" onclick="toggleReorder()">
+          <span class="ic">↕️</span><span><span class="nn">Riordina App</span></span>
+        </button>
         <button class="ni" onclick="openGest()">
           <span class="ic">⚙️</span><span><span class="nn">Gestione App</span></span>
         </button>
@@ -207,7 +228,6 @@ iframe.apf.active{display:block}
         <div class="gp-title">⚙️ Gestione App</div>
         <div class="gp-sub">Aggiungi, aggiorna o rimuovi app dalla suite.</div>
 
-        <!-- App esistenti -->
         <div class="gp-section">
           <div class="gp-slbl">Sincronizzazione dati</div>
           <div style="background:#111;border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px">
@@ -224,7 +244,6 @@ iframe.apf.active{display:block}
           <div id="appList"></div>
         </div>
 
-        <!-- Aggiungi nuova -->
         <div class="gp-section">
           <div class="gp-slbl">Aggiungi / Aggiorna app</div>
           <div class="upload-zone" id="uploadZone">
@@ -295,9 +314,10 @@ window.auth = auth; window.db = db;
 
 // ── State ──
 let user = null, syncTimer = null, curApp = null, ownerUid = null;
-let customApps = {}; // loaded from Firestore
-let hiddenApps = {}; // default apps hidden by user
+let customApps = {};
+let hiddenApps = {};
 let selectedFileContent = null, selectedFileName = null, selectedEmoji = '🆕';
+let reorderMode = false;
 
 const DEFAULT_APPS = ['blackdahlia','ebay_title','ebay_isbn','vinted_isbn','import_pipeline','isbn_titoli'];
 const EMOJIS = ['📝','🏷️','📦','👗','🔄','📚','🛒','💰','📊','🗂️','🔍','⚡','🧮','📋','💡','🆕','⭐','🔧','📈','🎯'];
@@ -321,24 +341,102 @@ function toggleSidebar(v){
 document.getElementById('menuBtn').onclick=()=>toggleSidebar();
 overlay.onclick=()=>toggleSidebar(false);
 
+// ── Refresh current app ──
+function refreshCurrentApp(){
+  if(!curApp) return;
+  const frame = document.getElementById('f_'+curApp);
+  if(!frame || !frame.classList.contains('active')) return;
+  // For custom apps reload from blob, for default reload src
+  if(customApps[curApp]){
+    const blob = new Blob([customApps[curApp].html], {type:'text/html'});
+    frame.src = URL.createObjectURL(blob);
+    frame.dataset.loaded = '1';
+  } else {
+    const src = frame.src;
+    frame.src = 'about:blank';
+    setTimeout(()=>{ frame.src = src; }, 50);
+  }
+  toast('↺ App aggiornata','ok',1500);
+  // Re-push cloud data after reload
+  frame.onload = ()=>{
+    if(user) pushCloudDataToFrame(frame);
+    frame.onload = null;
+  };
+}
+
+// ── Reorder sidebar ──
+function toggleReorder(){
+  reorderMode = !reorderMode;
+  const navItems = document.getElementById('navItems');
+  const btn = document.getElementById('reorderBtn');
+  if(reorderMode){
+    navItems.classList.add('reorder-mode');
+    btn.querySelector('.nn').textContent = '✓ Fine riordino';
+    btn.style.color = 'var(--gold)';
+    toast('Usa ▲▼ per spostare le app','ok',2000);
+  } else {
+    navItems.classList.remove('reorder-mode');
+    btn.querySelector('.nn').textContent = 'Riordina App';
+    btn.style.color = '';
+    saveNavOrder();
+  }
+}
+
+function moveApp(event, appId, direction){
+  event.stopPropagation();
+  const navItems = document.getElementById('navItems');
+  const buttons = Array.from(navItems.querySelectorAll('.ni[data-app]'));
+  const idx = buttons.findIndex(b => b.dataset.app === appId);
+  if(idx === -1) return;
+  const newIdx = idx + direction;
+  if(newIdx < 0 || newIdx >= buttons.length) return;
+  // Swap in DOM
+  if(direction === -1){
+    navItems.insertBefore(buttons[idx], buttons[newIdx]);
+  } else {
+    navItems.insertBefore(buttons[newIdx], buttons[idx]);
+  }
+}
+
+function saveNavOrder(){
+  const navItems = document.getElementById('navItems');
+  const order = Array.from(navItems.querySelectorAll('.ni[data-app]')).map(b => b.dataset.app);
+  localStorage.setItem('suite_nav_order', JSON.stringify(order));
+  if(user){
+    db.collection('users').doc(ownerUid||user.uid).collection('storage')
+      .doc('suite_nav_order').set({key:'suite_nav_order', value:JSON.stringify(order), updatedAt:firebase.firestore.FieldValue.serverTimestamp()})
+      .catch(e=>console.error(e));
+  }
+  toast('Ordine salvato','ok',1500);
+}
+
+function loadNavOrder(){
+  const saved = localStorage.getItem('suite_nav_order');
+  if(!saved) return;
+  try{
+    const order = JSON.parse(saved);
+    const navItems = document.getElementById('navItems');
+    order.forEach(appId => {
+      const btn = navItems.querySelector(`.ni[data-app="${appId}"]`);
+      if(btn) navItems.appendChild(btn);
+    });
+  }catch(e){ console.error(e); }
+}
+
 // ── App switching ──
 function switchApp(appId, label) {
-  // Hide gestione
   document.getElementById('gestPanel').classList.remove('active');
-  // Hide all frames
   document.querySelectorAll('.apf').forEach(f=>f.classList.remove('active'));
   document.querySelectorAll('.ni[data-app]').forEach(n=>n.classList.remove('active'));
 
   let frame = document.getElementById('f_'+appId);
   if(!frame){
-    // Create iframe for custom app
     frame = document.createElement('iframe');
     frame.className = 'apf';
     frame.id = 'f_'+appId;
     document.getElementById('content').appendChild(frame);
   }
 
-  // If custom app, load from Firestore blob
   if(customApps[appId] && !frame.dataset.loaded){
     const blob = new Blob([customApps[appId].html], {type:'text/html'});
     frame.src = URL.createObjectURL(blob);
@@ -350,13 +448,18 @@ function switchApp(appId, label) {
   if(nav) nav.classList.add('active');
   document.getElementById('hdrTitle').textContent = label || appId;
   curApp = appId;
+  // Close sidebar and reorder mode if open
+  if(reorderMode) toggleReorder();
   toggleSidebar(false);
   if(user) pushCloudDataToFrame(frame);
 }
 
 // ── Default nav click ──
 document.querySelectorAll('.ni[data-app]').forEach(btn=>{
-  btn.onclick=()=>switchApp(btn.dataset.app, btn.querySelector('.nn').textContent);
+  btn.onclick=()=>{
+    if(reorderMode) return; // don't switch when reordering
+    switchApp(btn.dataset.app, btn.querySelector('.nn').textContent);
+  };
 });
 
 // ── Gestione panel ──
@@ -365,6 +468,7 @@ function openGest(){
   document.querySelectorAll('.ni[data-app]').forEach(n=>n.classList.remove('active'));
   document.getElementById('gestPanel').classList.add('active');
   document.getElementById('hdrTitle').textContent='⚙️ Gestione App';
+  if(reorderMode) toggleReorder();
   toggleSidebar(false);
   renderAppList();
   renderEmojiGrid();
@@ -375,7 +479,6 @@ function renderAppList(){
   const list = document.getElementById('appList');
   let html = '';
 
-  // Default apps
   DEFAULT_APPS.forEach(id=>{
     const nav = document.querySelector(`.ni[data-app="${id}"]`);
     const icon = nav ? nav.querySelector('.ic').textContent : '📄';
@@ -386,7 +489,7 @@ function renderAppList(){
       <span class="ac-icon">${icon}</span>
       <div class="ac-info">
         <div class="ac-name">${name}</div>
-        <div class="ac-src">${isHidden ? '🚫 Nascosta' : hasCustom ? '✓ Versione personalizzata attiva' : 'Predefinita (Netlify)'}</div>
+        <div class="ac-src">${isHidden ? '🚫 Nascosta' : hasCustom ? '✓ Versione personalizzata attiva' : 'Predefinita'}</div>
       </div>
       <div class="ac-btns">
         ${isHidden
@@ -398,9 +501,8 @@ function renderAppList(){
     </div>`;
   });
 
-  // Custom apps
   Object.entries(customApps).forEach(([id, app])=>{
-    if(DEFAULT_APPS.includes(id)) return; // already shown above
+    if(DEFAULT_APPS.includes(id)) return;
     html += `<div class="app-card">
       <span class="ac-icon">${app.icon||'🆕'}</span>
       <div class="ac-info">
@@ -466,7 +568,6 @@ function handleFile(file){
     selectedFileContent = ev.target.result;
     selectedFileName = file.name;
     document.getElementById('selectedFileName').textContent = '📄 ' + file.name;
-    // Auto-fill name from filename
     if(!document.getElementById('newAppName').value){
       document.getElementById('newAppName').value = file.name.replace('.html','').replace(/[-_]/g,' ');
     }
@@ -496,41 +597,31 @@ async function saveNewApp(){
   const desc  = document.getElementById('newAppDesc').value.trim();
   const icon  = selectedEmoji;
   const targetId = document.getElementById('updateTarget').value;
-
-  // Generate ID
   const appId = targetId || ('app_' + Date.now());
 
   const btn = document.getElementById('saveAppBtn');
   btn.disabled=true; btn.textContent='Salvataggio...';
 
   try{
-    // Save to Firestore (split if >900KB)
     const appData = { name, icon, desc, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-
-    // Store HTML in chunks if needed (Firestore 1MB limit)
     const CHUNK = 800000;
     const chunks = [];
     for(let i=0;i<selectedFileContent.length;i+=CHUNK)
       chunks.push(selectedFileContent.slice(i,i+CHUNK));
 
     appData.chunks = chunks.length;
-    appData.html = chunks[0]; // first chunk inline
-    // Extra chunks
+    appData.html = chunks[0];
     for(let i=1;i<chunks.length;i++) appData['html'+i]=chunks[i];
 
     await db.collection('users').doc(user.uid).collection('apps').doc(appId).set(appData);
 
-    // Update local state
     customApps[appId] = { name, icon, desc, html: selectedFileContent };
-
-    // Add/update nav item
     addNavItem(appId, name, icon, desc);
 
     toast(`✓ "${name}" salvata!`,'ok',3000);
     renderAppList();
     populateUpdateSelect();
 
-    // Reset form
     selectedFileContent=null; selectedFileName=null;
     document.getElementById('addForm').style.display='none';
     document.getElementById('newAppName').value='';
@@ -538,7 +629,6 @@ async function saveNewApp(){
     document.getElementById('selectedFileName').textContent='';
     document.getElementById('updateTarget').value='';
 
-    // Remove cached iframe so it reloads
     const oldFrame = document.getElementById('f_'+appId);
     if(oldFrame){ oldFrame.dataset.loaded=''; oldFrame.src='about:blank'; }
 
@@ -551,15 +641,14 @@ async function saveNewApp(){
 }
 
 function addNavItem(appId, name, icon, desc){
-  // Remove existing nav item if any
   const existing = document.querySelector(`.ni[data-app="${appId}"]`);
   if(existing) existing.remove();
 
   const btn = document.createElement('button');
   btn.className='ni';
   btn.dataset.app=appId;
-  btn.innerHTML=`<span class="ic">${icon}</span><span><span class="nn">${name}</span><span class="nd">${desc||''}</span></span>`;
-  btn.onclick=()=>switchApp(appId, icon+' '+name);
+  btn.innerHTML=`<span class="ic">${icon}</span><span><span class="nn">${name}</span><span class="nd">${desc||''}</span></span><span class="move-btns"><button class="move-btn" onclick="moveApp(event,'${appId}',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'${appId}',1)">▼</button></span>`;
+  btn.onclick=()=>{ if(!reorderMode) switchApp(appId, icon+' '+name); };
   document.getElementById('navItems').appendChild(btn);
 }
 
@@ -569,9 +658,7 @@ function confirmDelete(appId, name, mode){
   pendingDelete = {appId, mode};
   document.getElementById('modalTitle').textContent = 'Elimina "'+name+'"';
   document.getElementById('modalMsg').textContent = mode==='default'
-    ? `Nascondi "${name}" dalla sidebar? Puoi sempre ripristinarla dal pannello Gestione App.`
-    : mode==='override'
-    ? `Rimuovi la versione personalizzata di "${name}"? Tornerà alla versione predefinita.`
+    ? `Nascondi "${name}" dalla sidebar?`
     : `Elimina definitivamente "${name}" dalla suite?`;
   document.getElementById('modalConfirm').textContent = mode==='default' ? 'Nascondi' : 'Elimina';
   document.getElementById('modalConfirm').onclick = doDelete;
@@ -585,23 +672,13 @@ async function doDelete(){
   closeModal();
   try{
     if(mode === 'default'){
-      // Hide default app: save to Firestore and remove from sidebar
       hiddenApps[appId] = true;
       await db.collection('users').doc(user.uid).collection('hidden_apps').doc(appId).set({hidden:true});
       const nav = document.querySelector(`.ni[data-app="${appId}"]`);
       if(nav) nav.style.display='none';
-      // If currently viewing this app, go back to gestione
       if(curApp===appId) openGest();
       toast('App nascosta','ok');
-    } else if(mode === 'override'){
-      // Remove custom version, revert to default
-      await db.collection('users').doc(user.uid).collection('apps').doc(appId).delete();
-      delete customApps[appId];
-      const fr=document.getElementById('f_'+appId);
-      if(fr){ fr.dataset.loaded=''; fr.src=fr.src; }
-      toast('Versione personalizzata rimossa','ok');
     } else {
-      // Delete custom app entirely
       await db.collection('users').doc(user.uid).collection('apps').doc(appId).delete();
       delete customApps[appId];
       const nav=document.querySelector(`.ni[data-app="${appId}"]`);
@@ -630,15 +707,13 @@ async function restoreDefault(appId, name){
   }
 }
 
-// ── Manual sync functions ──
+// ── Manual sync ──
 async function uploadAllToCloud(){
   if(!user){ toast('Devi essere loggato','err'); return; }
   const keys = Object.keys(localStorage);
   if(keys.length===0){ toast('Nessun dato locale da caricare','err'); return; }
-  
   const btn = event.target;
   btn.disabled=true; btn.textContent='Caricamento...';
-  
   try{
     const batch = db.batch();
     let count = 0;
@@ -654,7 +729,6 @@ async function uploadAllToCloud(){
     document.getElementById('syncBadge').textContent='✓ sync';
     toast('✓ ' + count + ' voci caricate su cloud!','ok',3000);
   }catch(e){
-    // batch might fail if too many - try one by one
     let count=0;
     for(const key of Object.keys(localStorage)){
       const value = localStorage.getItem(key);
@@ -687,7 +761,6 @@ async function downloadAllFromCloud(){
         count++;
       }
     });
-    // Push to all iframes
     const data={};
     snap.forEach(doc=>{ const d=doc.data(); if(d.key) data[d.key]=d.value; });
     document.querySelectorAll('.apf').forEach(f=>pushDataToFrame(f,data));
@@ -699,31 +772,7 @@ async function downloadAllFromCloud(){
   }
 }
 
-// ── Load custom apps from Firestore ──
-async function loadCustomApps(){
-  if(!user) return;
-  try{
-    // Load hidden default apps
-    const hiddenSnap = await db.collection('users').doc(user.uid).collection('hidden_apps').get();
-    hiddenSnap.forEach(doc=>{
-      hiddenApps[doc.id] = true;
-      const nav = document.querySelector(`.ni[data-app="${doc.id}"]`);
-      if(nav) nav.style.display='none';
-    });
-    // Load custom apps
-    const snap = await db.collection('users').doc(user.uid).collection('apps').get();
-    snap.forEach(doc=>{
-      const d = doc.data();
-      // Reassemble chunks
-      let html = d.html || '';
-      for(let i=1;i<(d.chunks||1);i++) html += (d['html'+i]||'');
-      customApps[doc.id] = { name:d.name, icon:d.icon, desc:d.desc, html };
-      addNavItem(doc.id, d.name, d.icon, d.desc);
-    });
-  }catch(e){ console.error('loadCustomApps',e); }
-}
-
-// ── Firestore data sync (localStorage) ──
+// ── Firestore sync ──
 function encKey(k){ return k.replace(/[^a-zA-Z0-9_-]/g,'_'); }
 
 async function saveKey(key, value){
@@ -741,6 +790,11 @@ async function pullCloud(){
     const snap = await db.collection('users').doc(ownerUid||user.uid).collection('storage').get();
     const data={};
     snap.forEach(doc=>{const d=doc.data();if(d.key)data[d.key]=d.value;});
+    // Restore nav order from cloud if present
+    if(data['suite_nav_order']){
+      localStorage.setItem('suite_nav_order', data['suite_nav_order']);
+      loadNavOrder();
+    }
     document.querySelectorAll('.apf').forEach(f=>pushDataToFrame(f,data));
     document.getElementById('syncBadge').textContent='✓ sync';
     toast('Dati sincronizzati ✓','ok',1500);
@@ -771,15 +825,10 @@ window.addEventListener('message', e=>{
 });
 
 // ── Auth ──
-// doLogin defined above in early script
 function doLogout(){ auth.signOut(); toggleSidebar(false); }
 
-// Handle redirect result first, then watch auth state
 auth.getRedirectResult().then(function(result){
-  // handled by onAuthStateChanged
-}).catch(function(e){
-  console.error('redirect error', e);
-});
+}).catch(function(e){ console.error('redirect error', e); });
 
 auth.onAuthStateChanged(async u=>{
   if(u){
@@ -791,12 +840,13 @@ auth.onAuthStateChanged(async u=>{
       const av=document.getElementById('userAvatar');
       av.src=u.photoURL; av.style.display='block';
     }
-    // Resolve team ownership
     try{
       const ms = await db.collection('team_members').where('email','==',u.email).limit(1).get();
       ownerUid = ms.empty ? u.uid : ms.docs[0].data().ownerUid;
     }catch(e){ ownerUid = u.uid; }
-    
+
+    // Load local nav order first (fast), cloud will override
+    loadNavOrder();
     toggleSidebar(true);
     await loadCustomApps();
     switchApp('blackdahlia','📝 Black Dahlia');
@@ -810,6 +860,27 @@ auth.onAuthStateChanged(async u=>{
     document.getElementById('syncBadge').textContent='';
   }
 });
+
+// ── Load custom apps ──
+async function loadCustomApps(){
+  if(!user) return;
+  try{
+    const hiddenSnap = await db.collection('users').doc(user.uid).collection('hidden_apps').get();
+    hiddenSnap.forEach(doc=>{
+      hiddenApps[doc.id] = true;
+      const nav = document.querySelector(`.ni[data-app="${doc.id}"]`);
+      if(nav) nav.style.display='none';
+    });
+    const snap = await db.collection('users').doc(user.uid).collection('apps').get();
+    snap.forEach(doc=>{
+      const d = doc.data();
+      let html = d.html || '';
+      for(let i=1;i<(d.chunks||1);i++) html += (d['html'+i]||'');
+      customApps[doc.id] = { name:d.name, icon:d.icon, desc:d.desc, html };
+      addNavItem(doc.id, d.name, d.icon, d.desc);
+    });
+  }catch(e){ console.error('loadCustomApps',e); }
+}
 </script>
 </body>
 </html>
