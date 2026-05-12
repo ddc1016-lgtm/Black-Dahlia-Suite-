@@ -15,6 +15,13 @@
   window.addEventListener('message', function(e){
     if(e.data && e.data.type === 'LOAD_KEY'){
       try{ _origSet.call(localStorage, e.data.key, e.data.value); }catch(ex){}
+      // Se arriva eb3_archivio aggiorna la variabile in memoria
+      if(e.data.key === 'eb3_archivio'){
+        try{
+          var parsed = JSON.parse(e.data.value);
+          if(window.archivio !== undefined) window.archivio = parsed;
+        }catch(ex){}
+      }
     }
   });
 })();
@@ -97,6 +104,20 @@ input:focus,textarea:focus{border-color:#c9a84c44}
 .arch-item-preview{font-size:12px;color:#666;margin-top:8px;line-height:1.5;white-space:pre-wrap;max-height:60px;overflow:hidden;position:relative}
 .arch-item-preview::after{content:'';position:absolute;bottom:0;left:0;right:0;height:20px;background:linear-gradient(transparent,#111)}
 .arch-del{background:#2a1010;border:none;color:#e74c3c;border-radius:6px;padding:5px 9px;cursor:pointer;font-size:12px;flex-shrink:0}
+.arch-item.sel{border-color:#c9a84c !important;background:#13110a}
+.arch-cb{width:22px;height:22px;border-radius:6px;border:2px solid #333;background:#111;flex-shrink:0;display:none;align-items:center;justify-content:center;font-size:13px;transition:all .2s;margin-right:4px}
+.arch-cb.on{background:#c9a84c;border-color:#c9a84c;color:#000}
+.sel-mode .arch-cb{display:flex}
+.sel-mode .arch-item{cursor:pointer}
+.arch-item.selected{border-color:#c9a84c;background:#141200}
+.arch-check{width:20px;height:20px;border-radius:5px;border:2px solid #333;background:#111;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;transition:all .2s}
+.arch-check.on{background:#c9a84c;border-color:#c9a84c;color:#000}
+.bulk-bar{position:sticky;bottom:0;background:#111;border-top:1px solid #2a2000;padding:12px 14px;display:none;gap:8px;z-index:50}
+.bulk-bar.show{display:flex}
+.bulk-count{font-size:11px;color:#c9a84c;font-weight:700;align-self:center;flex:1}
+.bulk-btn{padding:10px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif;border:none;white-space:nowrap}
+.bulk-btn.gold{background:#1a1400;color:#c9a84c;border:1px solid #2a2000}
+.bulk-btn.red{background:#1a0808;color:#e74c3c;border:1px solid #3a1010}
 .arch-detail{background:#0a0a0a;border:1px solid #1e1e1e;border-radius:10px;padding:14px;margin-top:8px;display:none}
 .arch-detail-text{font-size:13px;color:#ccc;white-space:pre-wrap;line-height:1.8;word-break:break-word;user-select:all}
 .overlay{position:fixed;inset:0;background:#000c;z-index:200;display:flex;align-items:flex-end}
@@ -306,6 +327,15 @@ footer{text-align:center;color:#2a2a2a;font-size:11px;margin-top:20px}
       <button onclick="ordinaArchivio('az')" style="flex:1;padding:6px;border-radius:6px;border:1px solid #222;background:#111;color:#555;font-size:10px;font-weight:700;cursor:pointer;font-family:Georgia,serif">A-Z</button>
     </div>
     <input type="text" id="archSearch" placeholder="Cerca per titolo..." style="margin-bottom:10px;font-size:13px" oninput="renderArchivio()">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button id="archSelBtn" onclick="toggleArchSel()" style="flex:1;padding:8px;border-radius:8px;border:1px solid #2a2000;background:#1a1400;color:#c9a84c;font-size:11px;font-weight:700;cursor:pointer;font-family:Georgia,serif">&#9745; Seleziona</button>
+      <button id="archSelAllBtn" onclick="archSelAll()" style="display:none;flex:1;padding:8px;border-radius:8px;border:1px solid #2a2000;background:#1a1400;color:#c9a84c;font-size:11px;font-weight:700;cursor:pointer;font-family:Georgia,serif">Tutti</button>
+    </div>
+    <div id="archBulkBar" style="display:none;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <div id="archSelCount" style="width:100%;font-size:11px;color:#c9a84c;font-weight:700;margin-bottom:4px">0 selezionati</div>
+      <button onclick="bulkSpostaStorico()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #2a2000;background:#1a1400;color:#c9a84c;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">&#128228; Sposta in Storico</button>
+      <button onclick="bulkEliminaArchivio()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #3a1010;background:#1a0808;color:#e74c3c;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">&#128465; Elimina</button>
+    </div>
     <div id="archivioList"></div>
     <div id="archivioEmpty" style="text-align:center;color:#333;font-size:13px;padding:20px;display:none">Nessuna descrizione salvata.<br><span style="font-size:11px;color:#222">Genera e premi Salva in Archivio</span></div>
   </div>
@@ -348,12 +378,12 @@ footer{text-align:center;color:#2a2a2a;font-size:11px;margin-top:20px}
 
 <script>
 var DEF_FIELDS=[{id:'titolo',label:'Titolo',placeholder:'es. Il Nome della Rosa',required:true,half:false},{id:'autore',label:'Autore',placeholder:'es. Umberto Eco',required:false,half:true},{id:'anno',label:'Anno',placeholder:'es. 1980',required:false,half:true},{id:'editore',label:'Editore',placeholder:'es. Bompiani',required:false,half:false},{id:'pagine',label:'Pagine',placeholder:'es. 502',required:false,half:false}];
-var DEF_COND=[{v:'Nuovo',frase:'Il libro e in condizioni perfette, mai letto, come nuovo di fabbrica.'},{v:'Come nuovo',frase:'Il libro e in ottime condizioni, praticamente come nuovo, con minime tracce di utilizzo.'},{v:'Ottime condizioni',frase:'Il libro e in ottime condizioni generali. La copertina puo presentare imperfezioni e le pagine un lieve ingiallimento. Vedi foto per dettagli.'},{v:'Buone condizioni',frase:'Il libro e in buone condizioni generali. Presenta le normali tracce di un utilizzo attento.'},{v:'Condizioni accettabili',frase:'Il libro presenta segni visibili di utilizzo ma e completo e leggibile in ogni sua parte.'},{v:'Da restauro',frase:'Il libro necessita di restauro. Prezzo conseguentemente ridotto. Vedi foto per dettagli.'}];
-var DEF_VCOND=[{v:'Nuovo con etichetta',frase:'Articolo nuovo, mai usato, con etichetta originale.'},{v:'Nuovo senza etichetta',frase:'Articolo nuovo, mai usato, senza etichetta.'},{v:'Ottime condizioni',frase:'Il libro e in ottime condizioni generali. Copertina integra, pagine pulite e senza strappi.'},{v:'Buone condizioni',frase:'Il libro e in buone condizioni generali. Presenta le normali tracce di un utilizzo attento.'},{v:'Condizioni accettabili',frase:'Il libro presenta segni visibili di utilizzo ma e completo e leggibile in ogni sua parte.'}];
+var DEF_COND=[{v:'Nuovo',frase:'Il libro è in condizioni perfette, mai letto, come nuovo di fabbrica.'},{v:'Come nuovo',frase:'Il libro è in ottime condizioni, praticamente come nuovo, con minime tracce di utilizzo.'},{v:'Ottime condizioni',frase:'Il libro è in ottime condizioni generali. La copertina può presentare imperfezioni e le pagine un lieve ingiallimento. Vedi foto per dettagli.'},{v:'Buone condizioni',frase:'Il libro è in buone condizioni generali. Presenta le normali tracce di un utilizzo attento.'},{v:'Condizioni accettabili',frase:'Il libro presenta segni visibili di utilizzo ma è completo e leggibile in ogni sua parte.'},{v:'Da restauro',frase:'Il libro necessita di restauro. Prezzo conseguentemente ridotto. Vedi foto per dettagli.'}];
+var DEF_VCOND=[{v:'Nuovo con etichetta',frase:'Articolo nuovo, mai usato, con etichetta originale.'},{v:'Nuovo senza etichetta',frase:'Articolo nuovo, mai usato, senza etichetta.'},{v:'Ottime condizioni',frase:'Il libro è in ottime condizioni generali. Copertina integra, pagine pulite e senza strappi.'},{v:'Buone condizioni',frase:'Il libro è in buone condizioni generali. Presenta le normali tracce di un utilizzo attento.'},{v:'Condizioni accettabili',frase:'Il libro presenta segni visibili di utilizzo ma è completo e leggibile in ogni sua parte.'}];
 var DEF_TAGS=[{t:'PRIMA EDIZIONE',tipo:'tag'},{t:'RARO',tipo:'tag'},{t:'FUORI CATALOGO',tipo:'tag'},{t:'AUTOGRAFATO',tipo:'tag'},{t:'ILLUSTRATO',tipo:'tag'},{t:'COPERTINA RIGIDA',tipo:'tag'},{t:'BROSSURA',tipo:'tag'},{t:'CON SOVRACCOPERTA',tipo:'tag'},{t:'COFANETTO',tipo:'tag'},{t:'NUMERATO',tipo:'tag'},{t:'DEDICA AUTORE',tipo:'tag'},{t:'TIRATURA LIMITATA',tipo:'tag'},{t:'DA COLLEZIONE',tipo:'valore'},{t:'INTROVABILE',tipo:'valore'},{t:'OPERA DI PREGIO',tipo:'valore'},{t:'MUST HAVE',tipo:'valore'}];
 var DEF_ETMPL=[{id:'t1',title:'CONTATTI',testo:'BlackDahliaReal\nRoma - Metro Garbatella\nblackdahliareal@yahoo.com\n3716518635'},{id:'t2',title:'SPEDIZIONE',testo:'BRT 48h\nPoste italiane\nImballaggio a regola d\'arte.\n(In caso di preferenze per corrieri alternativi si prega di contattarci tempestivamente).'},{id:'t3',title:'PROMO',testo:'Agevolazioni per acquisti multipli o ritiro a mano.'},{id:'t4',title:'POLITICA RESI',testo:'Si accettano resi entro 14 giorni, da legge in vigore.\nCosto a carico dell\'acquirente per ripensamento.\nCosto a carico del venditore se l\'articolo non corrisponde alla descrizione.\nE gradito un contatto prima di aprire una contestazione, una soluzione si trova sempre.'},{id:'t5',title:'CONFORMITA DESCRIZIONE',testo:'Le fotografie sono parte integrante della descrizione. Ogni difetto e segnalato visivamente e l\'articolo viene inquadrato da tutte le angolazioni. Se qualcosa dovesse sfuggire al nostro controllo, ci scusiamo in anticipo e ci rendiamo disponibili.'}];
 var DEF_VTMPL=[{id:'v1',title:'TRATTABILITA',testo:'Agevolazioni per acquisti multipli o ritiro a mano.'},{id:'v2',title:'CONFORMITA DESCRIZIONE',testo:'Le condizioni dell\'articolo sono visivamente riscontrabili dalle numerose immagini proposte che sono parte integrante della descrizione.\n\nPer maggiori info e ulteriori dettagli, non esitate a contattarci.'}];
-var VALORE_FRASI={'DA COLLEZIONE':'Un pezzo da collezione, ideale per gli appassionati del settore.','INTROVABILE':'Volume introvabile sul mercato, opportunita rara per i collezionisti.','OPERA DI PREGIO':'Un opera di pregio, perfetta per biblioteche private e collezioni d\'autore.','MUST HAVE':'Un must have per chiunque apprezzi questo genere o autore.'};
+var VALORE_FRASI={'DA COLLEZIONE':'Un pezzo da collezione, ideale per gli appassionati del settore.','INTROVABILE':'Volume introvabile sul mercato, opportunità rara per i collezionisti.','OPERA DI PREGIO':'Un\'opera di pregio, perfetta per biblioteche private e collezioni d\'autore.','MUST HAVE':'Un must have per chiunque apprezzi questo genere o autore.'};
 var TAG_MAP={'PRIMA EDIZIONE':'prima edizione','RARO':'volume raro e difficile da reperire','FUORI CATALOGO':'attualmente fuori catalogo','AUTOGRAFATO':'presenta firma/dedica autografa dell\'autore','ILLUSTRATO':'riccamente illustrato','NUMERATO':'esemplare numerato','TIRATURA LIMITATA':'tiratura limitata','CON SOVRACCOPERTA':'completo di sovraccoperta originale','COPERTINA RIGIDA':'rilegatura in copertina rigida','BROSSURA':'in brossura','DEDICA AUTORE':'presenta dedica dell\'autore','COFANETTO':'cofanetto'};
 
 function ls(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
@@ -497,8 +527,9 @@ function sincronizzaVinted(){
   document.getElementById('vNote').value=document.getElementById('eNote').value;
   document.getElementById('vIsbnIn').value=document.getElementById('isbnIn').value;
   vTagsSel=eTagsSel.slice();vValoreSel=eValoreSel;
-  var vCond=vconditions.find(function(x){return x.v===eCondSel;})||vconditions[2]||vconditions[0];
-  vCondSel=vCond.v;vCondFrase=vCond.frase;
+  var vCond=vconditions.find(function(x){return x.v===eCondSel;});
+  if(vCond){vCondSel=vCond.v;vCondFrase=vCond.frase;}
+  else{vCondSel=eCondSel;vCondFrase=eCondFrase;}
   renderCondChips('v');renderTagChips('v');
   genera('v');
 }
@@ -514,26 +545,106 @@ function salvaInArchivio(pfx){
   var isbn=document.getElementById(pfx==='e'?'isbnIn':'vIsbnIn').value.replace(/[-\s]/g,'')||'';
   var titoloEbay=pfx==='e'?(document.getElementById('eTitoloEbay').value.trim()||''):'';
   var prezzo=pfx==='e'?(document.getElementById('ePrezzo').value.trim()||''):'';
-  
   var now=new Date().toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  var item={id:Date.now(),titolo:titolo,isbn:isbn,titoloEbay:titoloEbay,prezzo:prezzo,piattaforma:pfx==='e'?'ebay':'vinted',data:now,testo:testo};
+  var item={id:Date.now(),titolo:titolo,isbn:isbn,titoloEbay:titoloEbay,prezzo:prezzo,piattaforma:pfx==='e'?'ebay':'vinted',data:now,testo:testo,storico:false};
   archivio.unshift(item);
   if(pfx==='e'){
     var testoV=document.getElementById('vResultText').textContent;
     if(testoV){
-      var itemV={id:Date.now()+1,titolo:titolo,isbn:isbn,titoloEbay:titoloEbay,prezzo:prezzo,piattaforma:'vinted',data:now,testo:testoV};
+      var itemV={id:Date.now()+1,titolo:titolo,isbn:isbn,titoloEbay:titoloEbay,prezzo:prezzo,piattaforma:'vinted',data:now,testo:testoV,storico:false};
       archivio.unshift(itemV);
     }
   }
   ss('eb3_archivio',archivio);
-  
+}
+
+function spostaInStorico(id){
+  var item=archivio.find(function(x){return x.id===id;});
+  if(!item)return;
+  item.storico=true;
+  ss('eb3_archivio',archivio);
+  renderArchivio();
+  alert('✅ Spostato nello Storico!');
+}
+
+var archSelMode=false;
+var archSelezione=[];
+
+function toggleArchSel(){
+  archSelMode=!archSelMode;
+  archSelezione=[];
+  var btn=document.getElementById('archSelBtn');
+  var allBtn=document.getElementById('archSelAllBtn');
+  var bulk=document.getElementById('archBulkBar');
+  if(archSelMode){
+    btn.textContent='✕ Annulla';
+    btn.style.color='#e74c3c';btn.style.borderColor='#3a1010';btn.style.background='#1a0808';
+    allBtn.style.display='flex';
+    bulk.style.display='flex';
+  } else {
+    btn.textContent='☑ Seleziona';
+    btn.style.color='#c9a84c';btn.style.borderColor='#2a2000';btn.style.background='#1a1400';
+    allBtn.style.display='none';
+    bulk.style.display='none';
+  }
+  renderArchivio();
+}
+
+function archSelAll(){
+  var search=(document.getElementById('archSearch')?document.getElementById('archSearch').value:'').toLowerCase();
+  var items=archivio.filter(function(x){return !x.storico;});
+  if(archFiltro!=='tutti')items=items.filter(function(x){return x.piattaforma===archFiltro;});
+  if(search)items=items.filter(function(x){return x.titolo.toLowerCase().includes(search);});
+  var allIds=items.map(function(x){return x.id;});
+  if(archSelezione.length===allIds.length){archSelezione=[];}
+  else{archSelezione=allIds;}
+  aggiornaArchSelCount();
+  renderArchivio();
+}
+
+function toggleArchItem(id){
+  if(!archSelMode)return;
+  var idx=archSelezione.indexOf(id);
+  if(idx>-1)archSelezione.splice(idx,1);
+  else archSelezione.push(id);
+  aggiornaArchSelCount();
+  var div=document.getElementById('arch-card-'+id);
+  var cb=document.getElementById('arch-cb-'+id);
+  if(div)div.classList.toggle('sel',archSelezione.includes(id));
+  if(cb)cb.classList.toggle('on',archSelezione.includes(id));
+  if(cb)cb.textContent=archSelezione.includes(id)?'✓':'';
+}
+
+function aggiornaArchSelCount(){
+  var el=document.getElementById('archSelCount');
+  if(el)el.textContent=archSelezione.length+' selezionat'+(archSelezione.length===1?'o':'i');
+}
+
+function bulkSpostaStorico(){
+  if(!archSelezione.length){alert('Seleziona almeno una voce.');return;}
+  if(!confirm('Spostare '+archSelezione.length+' voc'+(archSelezione.length===1?'e':'i')+' nello Storico?'))return;
+  archivio.forEach(function(item){
+    if(archSelezione.includes(item.id))item.storico=true;
+  });
+  ss('eb3_archivio',archivio);
+  archSelezione=[];
+  toggleArchSel();
+}
+
+function bulkEliminaArchivio(){
+  if(!archSelezione.length){alert('Seleziona almeno una voce.');return;}
+  if(!confirm('Eliminare definitivamente '+archSelezione.length+' voc'+(archSelezione.length===1?'e':'i')+'?'))return;
+  archivio=archivio.filter(function(x){return !archSelezione.includes(x.id);});
+  ss('eb3_archivio',archivio);
+  archSelezione=[];
+  toggleArchSel();
 }
 
 function filtroArchivio(f){archFiltro=f;renderArchivio();}
 function ordinaArchivio(o){archOrdine=o;renderArchivio();}
 function renderArchivio(){
   var search=(document.getElementById('archSearch')?document.getElementById('archSearch').value:'').toLowerCase();
-  var items=archivio.slice();
+  var items=archivio.filter(function(x){return !x.storico;});
   if(archFiltro!=='tutti')items=items.filter(function(x){return x.piattaforma===archFiltro;});
   if(search)items=items.filter(function(x){return x.titolo.toLowerCase().includes(search);});
   if(archOrdine==='vecchio')items=items.reverse();
@@ -541,15 +652,38 @@ function renderArchivio(){
   var list=document.getElementById('archivioList'),empty=document.getElementById('archivioEmpty');
   if(!items.length){list.innerHTML='';empty.style.display='block';return;}
   empty.style.display='none';list.innerHTML='';
+  if(archSelMode)list.classList.add('sel-mode');else list.classList.remove('sel-mode');
   items.forEach(function(item){
-    var div=document.createElement('div');div.className='arch-item';
-    div.onclick=function(){toggleArchDetail(item.id);};
+    var isSel=archSelezione.includes(item.id);
+    var div=document.createElement('div');
+    div.className='arch-item'+(isSel?' sel':'');
+    div.id='arch-card-'+item.id;
+    if(archSelMode){div.onclick=function(){toggleArchItem(item.id);};}
+    else{div.onclick=function(){toggleArchDetail(item.id);};}
     var isbnHtml='';
     if(item.isbn){var d1=document.createElement('div');d1.style.cssText='display:flex;align-items:center;gap:8px;margin-top:5px';var s1=document.createElement('span');s1.style.cssText='font-size:10px;color:#444;text-transform:uppercase;letter-spacing:.8px';s1.textContent='ISBN:';var s2=document.createElement('span');s2.style.cssText='font-family:monospace;font-size:12px;color:#c9a84c;letter-spacing:1px';s2.textContent=item.isbn;var b1=document.createElement('button');b1.style.cssText='padding:2px 8px;border-radius:4px;border:none;background:#1a1400;color:#c9a84c;font-size:10px;font-weight:700;cursor:pointer';b1.textContent='Copia';(function(v){b1.onclick=function(e){e.stopPropagation();fbCopy(v,function(){});};})(item.isbn);d1.appendChild(s1);d1.appendChild(s2);d1.appendChild(b1);isbnHtml=d1.outerHTML;}
     var prezzoHtml='';
     if(item.prezzo){var d2=document.createElement('div');d2.style.cssText='display:flex;align-items:center;gap:8px;margin-top:5px';var s3=document.createElement('span');s3.style.cssText='font-size:10px;color:#444;text-transform:uppercase;letter-spacing:.8px';s3.textContent='Prezzo:';var s4=document.createElement('span');s4.style.cssText='font-size:13px;font-weight:700;color:#4caf50';s4.textContent=item.prezzo;var b2=document.createElement('button');b2.style.cssText='padding:2px 8px;border-radius:4px;border:none;background:#1a3a1a;color:#4caf50;font-size:10px;font-weight:700;cursor:pointer';b2.textContent='Copia';(function(v){b2.onclick=function(e){e.stopPropagation();fbCopy(v,function(){});};})(item.prezzo);d2.appendChild(s3);d2.appendChild(s4);d2.appendChild(b2);prezzoHtml=d2.outerHTML;}
     var tEbayHtml=item.titoloEbay?'<div style="margin-top:6px;padding:6px 10px;background:#0f0c00;border:1px solid #2a2000;border-radius:6px"><div style="font-size:10px;color:#666;letter-spacing:.8px;text-transform:uppercase;margin-bottom:3px">Titolo eBay</div><div style="font-size:12px;color:#c9a84c;line-height:1.4">'+item.titoloEbay+'</div><button onclick="event.stopPropagation();copiaTestoSicuro(\''+encodeURIComponent(item.titoloEbay)+'\')" style="margin-top:4px;padding:2px 8px;border-radius:4px;border:none;background:#1a1400;color:#c9a84c;font-size:10px;font-weight:700;cursor:pointer">Copia titolo</button></div>':'';
-    div.innerHTML='<div class="arch-item-head"><div class="arch-item-title">'+item.titolo+'</div><span class="arch-item-badge '+item.piattaforma+'">'+(item.piattaforma==='ebay'?'eBay':'Vinted')+'</span><button class="arch-del" onclick="event.stopPropagation();eliminaArchivio('+item.id+')">&#128465;&#65039;</button></div><div class="arch-item-meta">'+item.data+'</div>'+isbnHtml+prezzoHtml+tEbayHtml+'<div class="arch-item-preview">'+item.testo.slice(0,120)+'</div>'+'<button onclick="event.stopPropagation();fbCopy(archivio.find(function(x){return x.id==='+item.id+';}).testo,function(){})" style="margin-top:8px;width:100%;padding:9px;border-radius:7px;border:none;background:#1a3a1a;color:#4caf50;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">&#128203; Copia descrizione</button>'+'<div class="arch-detail" id="arch-detail-'+item.id+'"><div class="arch-detail-text">'+item.testo+'</div><div style="display:flex;gap:8px;margin-top:10px"><button onclick="event.stopPropagation();copiaTestoSicuro(\''+encodeURIComponent(item.testo)+'\')" style="flex:1;padding:9px;border-radius:7px;border:none;background:#1a3a1a;color:#4caf50;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">Copia</button><button onclick="event.stopPropagation();eliminaArchivio('+item.id+')" style="flex:1;padding:9px;border-radius:7px;border:1px solid #3a1010;background:#1a0808;color:#e74c3c;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">Elimina</button></div></div>';
+    var cbHtml='<div class="arch-cb'+(isSel?' on':'')+'" id="arch-cb-'+item.id+'">'+(isSel?'✓':'')+'</div>';
+    var actionsHtml=archSelMode?'':
+      '<button onclick="event.stopPropagation();fbCopy(archivio.find(function(x){return x.id==='+item.id+';}).testo,function(){})" style="margin-top:8px;width:100%;padding:9px;border-radius:7px;border:none;background:#1a3a1a;color:#4caf50;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">&#128203; Copia descrizione</button>'+
+      '<button onclick="event.stopPropagation();spostaInStorico('+item.id+')" style="margin-top:6px;width:100%;padding:9px;border-radius:7px;border:1px solid #2a2000;background:#1a1400;color:#c9a84c;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">&#128228; Sposta in Storico</button>'+
+      '<div class="arch-detail" id="arch-detail-'+item.id+'"><div class="arch-detail-text">'+item.testo+'</div><div style="display:flex;gap:8px;margin-top:10px">'+
+      '<button onclick="event.stopPropagation();copiaTestoSicuro(\''+encodeURIComponent(item.testo)+'\')" style="flex:1;padding:9px;border-radius:7px;border:none;background:#1a3a1a;color:#4caf50;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">Copia</button>'+
+      '<button onclick="event.stopPropagation();spostaInStorico('+item.id+')" style="flex:1;padding:9px;border-radius:7px;border:1px solid #2a2000;background:#1a1400;color:#c9a84c;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">&#128228; Storico</button>'+
+      '<button onclick="event.stopPropagation();eliminaArchivio('+item.id+')" style="flex:1;padding:9px;border-radius:7px;border:1px solid #3a1010;background:#1a0808;color:#e74c3c;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">Elimina</button>'+
+      '</div></div>';
+    div.innerHTML=
+      '<div class="arch-item-head">'+cbHtml+
+      '<div class="arch-item-title">'+item.titolo+'</div>'+
+      '<span class="arch-item-badge '+item.piattaforma+'">'+(item.piattaforma==='ebay'?'eBay':'Vinted')+'</span>'+
+      (archSelMode?'':'<button class="arch-del" onclick="event.stopPropagation();eliminaArchivio('+item.id+')">&#128465;&#65039;</button>')+
+      '</div>'+
+      '<div class="arch-item-meta">'+item.data+'</div>'+
+      isbnHtml+prezzoHtml+tEbayHtml+
+      '<div class="arch-item-preview">'+item.testo.slice(0,120)+'</div>'+
+      actionsHtml;
     list.appendChild(div);
   });
 }

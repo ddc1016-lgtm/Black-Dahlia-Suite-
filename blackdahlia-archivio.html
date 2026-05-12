@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<script>
+(function(){
+  var _origSet=Storage.prototype.setItem;
+  Storage.prototype.setItem=function(key,value){
+    _origSet.call(this,key,value);
+    try{window.parent.postMessage({type:'SYNC',key:key,value:value},'*');}catch(e){}
+  };
+  window.addEventListener('message',function(e){
+    if(e.data&&e.data.type==='LOAD_KEY'){
+      try{Storage.prototype.setItem.call(localStorage,e.data.key,e.data.value);}catch(ex){}
+    }
+  });
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Black Dahlia · Archivio Storico</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08080a;
+  --bg2:#0e0e12;
+  --bg3:#13131a;
+  --border:#1e1e2a;
+  --border2:#2a2a3a;
+  --gold:#c9a84c;
+  --gold2:#a07820;
+  --gold-dim:#1e1800;
+  --vio:#9c7fd4;
+  --vio2:#5a3a9f;
+  --vio-dim:#1a1030;
+  --green:#4caf50;
+  --green-dim:#0d1a0d;
+  --red:#e74c3c;
+  --text:#f0e6c8;
+  --text2:#aaa;
+  --text3:#555;
+}
+body{background:var(--bg);color:var(--text);font-family:Georgia,serif;min-height:100vh;padding-bottom:100px}
+
+/* HEADER */
+header{
+  background:linear-gradient(160deg,#0f0a00,var(--bg) 55%,#0a0810);
+  border-bottom:1px solid var(--border);
+  padding:22px 18px 16px;
+  position:relative;
+  overflow:hidden;
+}
+header::before{
+  content:'';position:absolute;top:-40px;right:-30px;
+  width:180px;height:180px;
+  background:radial-gradient(circle,#c9a84c0a 0%,transparent 70%);
+  pointer-events:none;
+}
+.header-tag{font-size:10px;color:var(--gold);letter-spacing:4px;text-transform:uppercase;margin-bottom:6px;opacity:.7}
+.header-title{font-size:24px;font-weight:900;line-height:1}
+.header-title span{color:var(--gold)}
+.header-sub{font-size:11px;color:var(--text3);margin-top:5px;letter-spacing:.5px}
+
+/* STATS BAR */
+.stats-bar{
+  display:grid;grid-template-columns:1fr 1fr 1fr;
+  gap:1px;background:var(--border);
+  border-bottom:1px solid var(--border);
+}
+.stat{
+  background:var(--bg);padding:12px 14px;text-align:center;
+}
+.stat-n{font-size:20px;font-weight:900;color:var(--gold)}
+.stat-n.vio{color:var(--vio)}
+.stat-n.grn{color:var(--green)}
+.stat-l{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-top:2px}
+
+/* TOOLBAR */
+.toolbar{padding:14px;display:flex;flex-direction:column;gap:10px}
+.search-box{
+  display:flex;gap:8px;align-items:center;
+  background:var(--bg2);border:1px solid var(--border2);
+  border-radius:10px;padding:10px 14px;
+}
+.search-box input{
+  flex:1;background:none;border:none;color:var(--text);
+  font-size:14px;font-family:Georgia,serif;outline:none;
+}
+.search-box input::placeholder{color:var(--text3)}
+.search-icon{color:var(--text3);font-size:14px;flex-shrink:0}
+
+.filter-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.filter-row::-webkit-scrollbar{display:none}
+.fbtn{
+  padding:7px 13px;border-radius:20px;border:1px solid var(--border2);
+  background:var(--bg2);color:var(--text3);font-size:11px;font-weight:700;
+  cursor:pointer;font-family:Georgia,serif;white-space:nowrap;transition:all .2s;
+  flex-shrink:0;
+}
+.fbtn.on-all{background:var(--gold-dim);color:var(--gold);border-color:var(--gold)}
+.fbtn.on-ebay{background:var(--green-dim);color:var(--green);border-color:var(--green)}
+.fbtn.on-vinted{background:var(--vio-dim);color:var(--vio);border-color:var(--vio2)}
+
+.sort-row{display:flex;gap:6px}
+.sbtn{
+  flex:1;padding:7px;border-radius:8px;border:1px solid var(--border);
+  background:var(--bg2);color:var(--text3);font-size:10px;font-weight:700;
+  cursor:pointer;font-family:Georgia,serif;text-align:center;transition:all .2s;
+}
+.sbtn.on{background:var(--gold-dim);color:var(--gold);border-color:var(--gold)}
+
+/* EXPORT BTN */
+.export-section{padding:0 14px 14px}
+.btn-export{
+  width:100%;padding:14px;border-radius:12px;border:none;
+  background:linear-gradient(135deg,#1a3a10,#0d2a0a);
+  color:var(--green);font-size:13px;font-weight:900;cursor:pointer;
+  font-family:Georgia,serif;letter-spacing:.5px;
+  border:1px solid #2a5a1a;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:all .2s;
+}
+.btn-export:active{transform:scale(.98)}
+.btn-export-sub{font-size:10px;color:#2a7a20;font-weight:700;margin-top:2px;text-align:center}
+
+/* LIST */
+.list-wrap{padding:0 14px}
+.section-head{
+  font-size:9px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;
+  padding:10px 0 8px;border-bottom:1px solid var(--border);margin-bottom:10px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.count-badge{
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:20px;padding:2px 8px;font-size:10px;color:var(--text3);
+}
+
+/* CARD */
+.card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+  padding:16px;margin-bottom:10px;transition:border-color .2s;
+}
+.card.ebay{border-left:3px solid #2a5a1a}
+.card.vinted{border-left:3px solid var(--vio2)}
+.card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px}
+.card-title{font-size:14px;font-weight:700;color:var(--text);line-height:1.3;flex:1}
+.badge{
+  font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;
+  padding:3px 9px;border-radius:20px;flex-shrink:0;
+}
+.badge.ebay{background:var(--green-dim);color:var(--green);border:1px solid #2a5a1a}
+.badge.vinted{background:var(--vio-dim);color:var(--vio);border:1px solid var(--vio2)}
+
+.meta-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;
+}
+.meta-item{background:var(--bg3);border-radius:8px;padding:7px 10px}
+.meta-item.full{grid-column:1/-1}
+.meta-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px}
+.meta-val{font-size:12px;color:var(--text2);word-break:break-word}
+.meta-val.isbn{font-family:monospace;color:var(--gold);letter-spacing:.5px;font-size:11px}
+.meta-val.price{color:var(--green);font-weight:700;font-size:14px}
+
+.desc-preview{
+  background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  padding:12px;margin-bottom:10px;
+  font-size:12px;color:#888;line-height:1.7;
+  white-space:pre-wrap;word-break:break-word;
+  max-height:80px;overflow:hidden;position:relative;
+}
+.desc-preview.expanded{max-height:none}
+.desc-preview::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:28px;
+  background:linear-gradient(transparent,var(--bg3));
+  pointer-events:none;
+}
+.desc-preview.expanded::after{display:none}
+
+.card-actions{display:flex;gap:8px}
+.btn-copy{
+  flex:1;padding:10px;border-radius:8px;border:none;
+  background:#1a3a1a;color:var(--green);font-size:12px;font-weight:700;
+  cursor:pointer;font-family:Georgia,serif;transition:all .2s;
+}
+.btn-copy.ok{background:#27ae60;color:#fff}
+.btn-expand{
+  padding:10px 14px;border-radius:8px;border:1px solid var(--border2);
+  background:var(--bg3);color:var(--text3);font-size:12px;font-weight:700;
+  cursor:pointer;font-family:Georgia,serif;transition:all .2s;
+}
+.btn-del{
+  padding:10px 14px;border-radius:8px;border:1px solid #2a1010;
+  background:#1a0808;color:var(--red);font-size:14px;
+  cursor:pointer;font-family:Georgia,serif;transition:all .2s;
+}
+.card.sel{border-color:var(--gold) !important;background:#13110a}
+.sel-cb{width:22px;height:22px;border-radius:6px;border:2px solid #333;background:#111;
+  flex-shrink:0;display:none;align-items:center;justify-content:center;
+  font-size:13px;transition:all .2s;}
+.sel-cb.on{background:var(--gold);border-color:var(--gold);color:#000}
+.sel-mode-active .sel-cb{display:flex}
+
+/* EMPTY */
+.empty{
+  text-align:center;padding:50px 20px;
+}
+.empty-icon{font-size:40px;margin-bottom:12px;opacity:.3}
+.empty-text{color:var(--text3);font-size:13px;line-height:1.8}
+
+/* TOAST */
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:#1a3a1a;border:1px solid #2a5a1a;color:var(--green);
+  padding:10px 20px;border-radius:20px;font-size:12px;font-weight:700;
+  font-family:Georgia,serif;z-index:999;
+  transition:transform .3s ease;pointer-events:none;white-space:nowrap;
+}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* CONFIRM OVERLAY */
+.confirm-overlay{
+  position:fixed;inset:0;background:#000c;z-index:500;
+  display:flex;align-items:flex-end;justify-content:center;
+}
+.confirm-box{
+  background:#111;border:1px solid #333;border-radius:16px 16px 0 0;
+  width:100%;max-width:500px;padding:24px 20px;
+}
+.confirm-title{font-size:15px;font-weight:900;color:var(--text);margin-bottom:8px}
+.confirm-sub{font-size:12px;color:var(--text3);margin-bottom:20px;line-height:1.6}
+.confirm-btns{display:flex;gap:10px}
+.btn-cancel{
+  flex:1;padding:13px;border-radius:10px;border:1px solid var(--border2);
+  background:var(--bg2);color:var(--text2);font-size:13px;font-weight:700;
+  cursor:pointer;font-family:Georgia,serif;
+}
+.btn-confirm-del{
+  flex:1;padding:13px;border-radius:10px;border:none;
+  background:#3a1010;color:var(--red);font-size:13px;font-weight:700;
+  cursor:pointer;font-family:Georgia,serif;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-tag">📚 Black Dahlia Real</div>
+  <h1 class="header-title">Archivio <span>Storico</span></h1>
+  <div class="header-sub">Tutte le descrizioni salvate &middot; Export Excel</div>
+</header>
+
+<div class="stats-bar">
+  <div class="stat">
+    <div class="stat-n" id="statTot">0</div>
+    <div class="stat-l">Totali</div>
+  </div>
+  <div class="stat">
+    <div class="stat-n grn" id="statEbay">0</div>
+    <div class="stat-l">eBay</div>
+  </div>
+  <div class="stat">
+    <div class="stat-n vio" id="statVinted">0</div>
+    <div class="stat-l">Vinted</div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchIn" placeholder="Cerca per titolo, ISBN, autore..." oninput="renderList()">
+  </div>
+  <div class="filter-row">
+    <button class="fbtn on-all" id="fb-tutti" onclick="setFiltro('tutti')">Tutti</button>
+    <button class="fbtn" id="fb-ebay" onclick="setFiltro('ebay')">📦 eBay</button>
+    <button class="fbtn" id="fb-vinted" onclick="setFiltro('vinted')">🟢 Vinted</button>
+  </div>
+  <div class="sort-row">
+    <button class="sbtn on" id="sb-recente" onclick="setOrdine('recente')">Recenti</button>
+    <button class="sbtn" id="sb-vecchio" onclick="setOrdine('vecchio')">Meno recenti</button>
+    <button class="sbtn" id="sb-az" onclick="setOrdine('az')">A–Z</button>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button id="selBtn" onclick="toggleSel()" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);color:var(--text3);font-size:11px;font-weight:700;cursor:pointer;font-family:Georgia,serif">☑ Seleziona</button>
+    <button id="selAllBtn" onclick="selAll()" style="display:none;flex:1;padding:9px;border-radius:8px;border:1px solid var(--gold);background:var(--gold-dim);color:var(--gold);font-size:11px;font-weight:700;cursor:pointer;font-family:Georgia,serif">Tutti</button>
+  </div>
+  <div id="bulkBar" style="display:none;flex-direction:column;gap:8px">
+    <div id="selCount" style="font-size:11px;color:var(--gold);font-weight:700">0 selezionati</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="bulkRipristina()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #1a3a5a;background:#090e14;color:#7eb8f7;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">↩️ Ripristina</button>
+      <button onclick="bulkElimina()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #3a1010;background:#1a0808;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif">🗑️ Elimina</button>
+    </div>
+  </div>
+</div>
+
+<div class="export-section">
+  <button class="btn-export" onclick="esportaExcel()">
+    <span>📊</span>
+    <div>
+      <div>Esporta Excel</div>
+      <div class="btn-export-sub">2 fogli: eBay + Vinted</div>
+    </div>
+  </button>
+</div>
+
+<div class="list-wrap">
+  <div class="section-head">
+    <span id="listLabel">Archivio</span>
+    <span class="count-badge" id="listCount">0 voci</span>
+  </div>
+  <div id="listArea"></div>
+  <div id="emptyMsg" class="empty" style="display:none">
+    <div class="empty-icon">🗂️</div>
+    <div class="empty-text">Nessuna descrizione trovata.<br><span style="font-size:11px;color:#333">Genera e salva dall'app Black Dahlia</span></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="confirm-overlay" id="confirmOverlay" style="display:none">
+  <div class="confirm-box">
+    <div class="confirm-title">Eliminare questa voce?</div>
+    <div class="confirm-sub" id="confirmSub">L'operazione non può essere annullata.</div>
+    <div class="confirm-btns">
+      <button class="btn-cancel" onclick="closeConfirm()">Annulla</button>
+      <button class="btn-confirm-del" onclick="doDelete()">🗑️ Elimina</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var archivio=[];
+var filtro='tutti';
+var ordine='recente';
+var selMode=false;
+var selezione=[];
+var pendingDeleteId=null;
+
+function ls(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
+function ss(k,v){localStorage.setItem(k,JSON.stringify(v));}
+
+function carica(){archivio=ls('eb3_archivio',[]);aggiornaStat();renderList();}
+
+function aggiornaStat(){
+  var items=archivio.filter(function(x){return x.storico;});
+  var eb=items.filter(function(x){return x.piattaforma==='ebay';}).length;
+  var vi=items.filter(function(x){return x.piattaforma==='vinted';}).length;
+  document.getElementById('statTot').textContent=items.length;
+  document.getElementById('statEbay').textContent=eb;
+  document.getElementById('statVinted').textContent=vi;
+}
+
+function setFiltro(f){filtro=f;['tutti','ebay','vinted'].forEach(function(x){document.getElementById('fb-'+x).className='fbtn'+(x===f?' on-'+x:'');});renderList();}
+function setOrdine(o){ordine=o;['recente','vecchio','az'].forEach(function(x){document.getElementById('sb-'+x).className='sbtn'+(x===o?' on':'');});renderList();}
+
+function toggleSel(){
+  selMode=!selMode;selezione=[];
+  var btn=document.getElementById('selBtn');
+  var allBtn=document.getElementById('selAllBtn');
+  var bulk=document.getElementById('bulkBar');
+  if(selMode){
+    btn.textContent='✕ Annulla';
+    btn.style.cssText='flex:1;padding:9px;border-radius:8px;border:1px solid #3a1010;background:#1a0808;color:#e74c3c;font-size:11px;font-weight:700;cursor:pointer;font-family:Georgia,serif';
+    allBtn.style.display='flex';bulk.style.display='flex';
+  } else {
+    btn.textContent='☑ Seleziona';
+    btn.style.cssText='flex:1;padding:9px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);color:var(--text3);font-size:11px;font-weight:700;cursor:pointer;font-family:Georgia,serif';
+    allBtn.style.display='none';bulk.style.display='none';
+  }
+  renderList();
+}
+
+function selAll(){
+  var visibili=getFiltered().map(function(x){return x.id;});
+  selezione=(selezione.length===visibili.length)?[]:visibili.slice();
+  aggiornaSelCount();renderList();
+}
+
+function toggleItem(id){
+  if(!selMode)return;
+  var idx=selezione.indexOf(id);
+  if(idx>-1)selezione.splice(idx,1);else selezione.push(id);
+  aggiornaSelCount();
+  var card=document.getElementById('stcard-'+id);
+  var cb=document.getElementById('stcb-'+id);
+  if(card)card.classList.toggle('sel',selezione.includes(id));
+  if(cb){cb.classList.toggle('on',selezione.includes(id));cb.textContent=selezione.includes(id)?'✓':'';}
+}
+
+function aggiornaSelCount(){var el=document.getElementById('selCount');if(el)el.textContent=selezione.length+' selezionat'+(selezione.length===1?'o':'i');}
+
+function bulkRipristina(){
+  if(!selezione.length){showToast('Seleziona almeno una voce');return;}
+  if(!confirm('Ripristinare '+selezione.length+' voc'+(selezione.length===1?'e':'i')+' nell\'Archivio principale?'))return;
+  archivio.forEach(function(item){
+    if(selezione.includes(item.id))item.storico=false;
+  });
+  ss('eb3_archivio',archivio);
+  selezione=[];toggleSel();aggiornaStat();showToast('↩️ Ripristinati!');
+}
+
+function bulkElimina(){
+  if(!selezione.length){showToast('Seleziona almeno una voce');return;}
+  if(!confirm('Eliminare definitivamente '+selezione.length+' voc'+(selezione.length===1?'e':'i')+'?'))return;
+  archivio=archivio.filter(function(x){return !selezione.includes(x.id);});
+  ss('eb3_archivio',archivio);selezione=[];toggleSel();aggiornaStat();showToast('Eliminati');
+}
+
+function getFiltered(){
+  var q=(document.getElementById('searchIn').value||'').toLowerCase().trim();
+  var items=archivio.filter(function(x){return x.storico;});
+  if(filtro!=='tutti')items=items.filter(function(x){return x.piattaforma===filtro;});
+  if(q)items=items.filter(function(x){return (x.titolo||'').toLowerCase().includes(q)||(x.isbn||'').includes(q)||(x.testo||'').toLowerCase().includes(q);});
+  if(ordine==='vecchio')items=items.reverse();
+  else if(ordine==='az')items.sort(function(a,b){return (a.titolo||'').localeCompare(b.titolo||'');});
+  return items;
+}
+
+function renderList(){
+  var items=getFiltered();
+  var label=filtro==='tutti'?'Storico completo':filtro==='ebay'?'Solo eBay':'Solo Vinted';
+  document.getElementById('listLabel').textContent=label;
+  document.getElementById('listCount').textContent=items.length+' '+(items.length===1?'voce':'voci');
+  var area=document.getElementById('listArea');
+  var empty=document.getElementById('emptyMsg');
+  if(!items.length){area.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  if(selMode)area.classList.add('sel-mode-active');else area.classList.remove('sel-mode-active');
+  area.innerHTML='';
+  items.forEach(function(item){
+    var isSel=selezione.includes(item.id);
+    var div=document.createElement('div');
+    div.className='card '+(item.piattaforma==='ebay'?'ebay':'vinted')+(isSel?' sel':'');
+    div.id='stcard-'+item.id;
+    if(selMode){div.onclick=function(){toggleItem(item.id);};}
+    var condMatch=(item.testo||'').match(/STATO[:\s]+([^\n]+)/);
+    var cond=condMatch?condMatch[1].trim().slice(0,60):'—';
+    var metaHtml='<div class="meta-grid">';
+    if(item.isbn)metaHtml+='<div class="meta-item"><div class="meta-label">ISBN</div><div class="meta-val isbn">'+item.isbn+'</div></div>';
+    if(item.prezzo)metaHtml+='<div class="meta-item"><div class="meta-label">Prezzo</div><div class="meta-val price">€ '+item.prezzo+'</div></div>';
+    if(item.data)metaHtml+='<div class="meta-item"><div class="meta-label">Data</div><div class="meta-val">'+item.data+'</div></div>';
+    metaHtml+='<div class="meta-item"><div class="meta-label">Condizione</div><div class="meta-val">'+cond+'</div></div>';
+    if(item.titoloEbay)metaHtml+='<div class="meta-item full"><div class="meta-label">Titolo eBay</div><div class="meta-val" style="color:#c9a84c;font-size:11px">'+item.titoloEbay+'</div></div>';
+    metaHtml+='</div>';
+    var cbHtml='<div class="sel-cb'+(isSel?' on':'')+'" id="stcb-'+item.id+'">'+(isSel?'✓':'')+'</div>';
+    var actionsHtml=selMode?'':
+      '<div class="card-actions">'+
+      '<button class="btn-copy" id="cbtn-'+item.id+'" onclick="copiaTesto('+item.id+')">📋 Copia</button>'+
+      '<button class="btn-expand" id="ebtn-'+item.id+'" onclick="toggleDesc('+item.id+')">↕</button>'+
+      '<button onclick="ripristinaUno('+item.id+')" style="padding:10px 12px;border-radius:8px;border:1px solid #1a3a5a;background:#090e14;color:#7eb8f7;font-size:12px;font-weight:700;cursor:pointer;font-family:Georgia,serif" title="Ripristina">↩️</button>'+
+      '<button class="btn-del" onclick="eliminaUno('+item.id+')">🗑️</button>'+
+      '</div>';
+    div.innerHTML='<div class="card-head">'+cbHtml+'<div class="card-title">'+item.titolo+'</div><span class="badge '+item.piattaforma+'">'+(item.piattaforma==='ebay'?'eBay':'Vinted')+'</span></div>'+metaHtml+'<div class="desc-preview" id="desc-'+item.id+'">'+item.testo+'</div>'+actionsHtml;
+    area.appendChild(div);
+  });
+}
+
+function toggleDesc(id){var el=document.getElementById('desc-'+id);var btn=document.getElementById('ebtn-'+id);if(el.classList.contains('expanded')){el.classList.remove('expanded');btn.textContent='↕';}else{el.classList.add('expanded');btn.textContent='↑';}}
+
+function copiaTesto(id){
+  var item=archivio.find(function(x){return x.id===id;});if(!item)return;
+  var btn=document.getElementById('cbtn-'+id);
+  var ok=function(){btn.textContent='✓ Copiato!';btn.classList.add('ok');setTimeout(function(){btn.textContent='📋 Copia';btn.classList.remove('ok');},2000);};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(item.testo).then(ok).catch(function(){fbCopy(item.testo,ok);});else fbCopy(item.testo,ok);
+}
+function fbCopy(txt,ok){var ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');ok();}catch(e){alert('Tieni premuto per copiare');}document.body.removeChild(ta);}
+
+function ripristinaUno(id){
+  var item=archivio.find(function(x){return x.id===id;});
+  if(!item)return;
+  if(!confirm('Ripristinare "'+item.titolo+'" nell\'Archivio principale?'))return;
+  item.storico=false;
+  ss('eb3_archivio',archivio);
+  aggiornaStat();renderList();showToast('↩️ Ripristinato!');
+}
+
+function eliminaUno(id){
+  var item=archivio.find(function(x){return x.id===id;});if(!item)return;
+  pendingDeleteId=id;
+  document.getElementById('confirmSub').textContent='"'+item.titolo+'" verrà eliminato definitivamente.';
+  document.getElementById('confirmOverlay').style.display='flex';
+}
+function closeConfirm(){pendingDeleteId=null;document.getElementById('confirmOverlay').style.display='none';}
+function doDelete(){
+  if(pendingDeleteId===null)return;
+  archivio=archivio.filter(function(x){return x.id!==pendingDeleteId;});
+  ss('eb3_archivio',archivio);closeConfirm();aggiornaStat();renderList();showToast('Voce eliminata');
+}
+
+function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2200);}
+
+function esportaExcel(){
+  if(!archivio.length){showToast('Archivio vuoto');return;}
+  var ebayItems=archivio.filter(function(x){return x.piattaforma==='ebay';});
+  var vintedItems=archivio.filter(function(x){return x.piattaforma==='vinted';});
+  var wb=XLSX.utils.book_new();
+  var ebayData=[['Data','Titolo','ISBN','Prezzo (€)','Titolo eBay','Condizione','Descrizione']];
+  ebayItems.forEach(function(item){var condMatch=(item.testo||'').match(/STATO[:\s]+([^\n]+)/);var cond=condMatch?condMatch[1].trim():'';ebayData.push([item.data||'',item.titolo||'',item.isbn||'',item.prezzo||'',item.titoloEbay||'',cond,item.testo||'']);});
+  var wsEbay=XLSX.utils.aoa_to_sheet(ebayData);wsEbay['!cols']=[{wch:18},{wch:40},{wch:16},{wch:10},{wch:50},{wch:30},{wch:80}];stilaHeader(wsEbay,ebayData[0].length,'4CAF50');stilaRighe(wsEbay,ebayData.length-1,ebayData[0].length);impostaAltezzeRighe(wsEbay,ebayData.length-1);XLSX.utils.book_append_sheet(wb,wsEbay,'eBay');
+  var vintedData=[['Data','Titolo','ISBN','Condizione','Descrizione']];
+  vintedItems.forEach(function(item){var condMatch=(item.testo||'').match(/STATO[:\s]+([^\n]+)/);var cond=condMatch?condMatch[1].trim():'';vintedData.push([item.data||'',item.titolo||'',item.isbn||'',cond,item.testo||'']);});
+  var wsVinted=XLSX.utils.aoa_to_sheet(vintedData);wsVinted['!cols']=[{wch:18},{wch:40},{wch:16},{wch:30},{wch:80}];stilaHeader(wsVinted,vintedData[0].length,'9C7FD4');stilaRighe(wsVinted,vintedData.length-1,vintedData[0].length);impostaAltezzeRighe(wsVinted,vintedData.length-1);XLSX.utils.book_append_sheet(wb,wsVinted,'Vinted');
+  XLSX.writeFile(wb,'BlackDahlia-Storico-'+new Date().toISOString().slice(0,10)+'.xlsx');showToast('📊 Excel scaricato!');
+}
+
+function stilaHeader(ws,nCols,colorHex){for(var c=0;c<nCols;c++){var addr=XLSX.utils.encode_cell({r:0,c:c});if(!ws[addr])continue;ws[addr].s={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:colorHex}},alignment:{horizontal:'center',wrapText:false}};}}
+
+function stilaRighe(ws,nRows,nCols){for(var r=1;r<=nRows;r++){for(var c=0;c<nCols;c++){var addr=XLSX.utils.encode_cell({r:r,c:c});if(!ws[addr])continue;ws[addr].s={alignment:{wrapText:false,vertical:'top'}};}}}
+
+function impostaAltezzeRighe(ws,nRows){ws['!rows']=[];for(var i=0;i<=nRows;i++){ws['!rows'].push({hpt:15});}}
+window.addEventListener('storage',function(e){if(e.key==='eb3_archivio')carica();});
+// Dentro la suite i dati arrivano via postMessage invece di storage event
+window.addEventListener('message',function(e){
+  if(e.data&&e.data.type==='LOAD_KEY'&&e.data.key==='eb3_archivio'){
+    try{localStorage.setItem('eb3_archivio',e.data.value);}catch(ex){}
+    carica();
+  }
+});
+carica();
+</script>
+</body>
+</html>

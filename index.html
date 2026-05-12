@@ -177,27 +177,21 @@ iframe.apf.active{display:block}
         <!-- Default apps -->
         <button class="ni" data-app="blackdahlia" data-src="blackdahlia.html">
           <span class="ic">📝</span><span><span class="nn">Black Dahlia</span><span class="nd">Descrizioni prodotti</span></span>
-          <span class="move-btns"><button class="move-btn" onclick="moveApp(event,'blackdahlia',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'blackdahlia',1)">▼</button></span>
         </button>
         <button class="ni" data-app="ebay_title" data-src="ebay_title.html">
           <span class="ic">🏷️</span><span><span class="nn">eBay Title</span><span class="nd">Titoli ISBN per eBay</span></span>
-          <span class="move-btns"><button class="move-btn" onclick="moveApp(event,'ebay_title',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'ebay_title',1)">▼</button></span>
         </button>
         <button class="ni" data-app="ebay_isbn" data-src="ebay_isbn.html">
           <span class="ic">📦</span><span><span class="nn">eBay ISBN</span><span class="nd">Gestione ISBN eBay</span></span>
-          <span class="move-btns"><button class="move-btn" onclick="moveApp(event,'ebay_isbn',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'ebay_isbn',1)">▼</button></span>
         </button>
         <button class="ni" data-app="vinted_isbn" data-src="vinted_isbn.html">
           <span class="ic">👗</span><span><span class="nn">Vinted ISBN</span><span class="nd">Gestione ISBN Vinted</span></span>
-          <span class="move-btns"><button class="move-btn" onclick="moveApp(event,'vinted_isbn',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'vinted_isbn',1)">▼</button></span>
         </button>
         <button class="ni" data-app="import_pipeline" data-src="import_pipeline.html">
           <span class="ic">🔄</span><span><span class="nn">Import Pipeline</span><span class="nd">Pipeline importazione</span></span>
-          <span class="move-btns"><button class="move-btn" onclick="moveApp(event,'import_pipeline',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'import_pipeline',1)">▼</button></span>
         </button>
         <button class="ni" data-app="isbn_titoli" data-src="isbn_titoli.html">
           <span class="ic">📚</span><span><span class="nn">ISBN → Titoli</span><span class="nd">Lookup titoli libri</span></span>
-          <span class="move-btns"><button class="move-btn" onclick="moveApp(event,'isbn_titoli',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'isbn_titoli',1)">▼</button></span>
         </button>
       </div>
       <div style="flex:1"></div>
@@ -370,12 +364,25 @@ function toggleReorder(){
   const navItems = document.getElementById('navItems');
   const btn = document.getElementById('reorderBtn');
   if(reorderMode){
-    navItems.classList.add('reorder-mode');
+    // Inject move buttons into every nav item
+    navItems.querySelectorAll('.ni[data-app]').forEach(ni=>{
+      if(ni.querySelector('.move-btns')) return; // already has them
+      const appId = ni.dataset.app;
+      const span = document.createElement('span');
+      span.className = 'move-btns';
+      span.innerHTML =
+        `<button class="move-btn" onclick="moveApp(event,'${appId}',-1)">▲</button>`+
+        `<button class="move-btn" onclick="moveApp(event,'${appId}',1)">▼</button>`;
+      ni.appendChild(span);
+      ni.style.paddingRight = '44px';
+    });
     btn.querySelector('.nn').textContent = '✓ Fine riordino';
     btn.style.color = 'var(--gold)';
     toast('Usa ▲▼ per spostare le app','ok',2000);
   } else {
-    navItems.classList.remove('reorder-mode');
+    // Remove all move buttons
+    navItems.querySelectorAll('.move-btns').forEach(el=>el.remove());
+    navItems.querySelectorAll('.ni[data-app]').forEach(ni=>{ ni.style.paddingRight=''; });
     btn.querySelector('.nn').textContent = 'Riordina App';
     btn.style.color = '';
     saveNavOrder();
@@ -647,7 +654,7 @@ function addNavItem(appId, name, icon, desc){
   const btn = document.createElement('button');
   btn.className='ni';
   btn.dataset.app=appId;
-  btn.innerHTML=`<span class="ic">${icon}</span><span><span class="nn">${name}</span><span class="nd">${desc||''}</span></span><span class="move-btns"><button class="move-btn" onclick="moveApp(event,'${appId}',-1)">▲</button><button class="move-btn" onclick="moveApp(event,'${appId}',1)">▼</button></span>`;
+  btn.innerHTML=`<span class="ic">${icon}</span><span><span class="nn">${name}</span><span class="nd">${desc||''}</span></span>`;
   btn.onclick=()=>{ if(!reorderMode) switchApp(appId, icon+' '+name); };
   document.getElementById('navItems').appendChild(btn);
 }
