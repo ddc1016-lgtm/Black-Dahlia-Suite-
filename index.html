@@ -370,6 +370,7 @@ function toggleReorder(){
       const appId = ni.dataset.app;
       const span = document.createElement('span');
       span.className = 'move-btns';
+      span.style.display = 'flex';
       span.innerHTML =
         `<button class="move-btn" onclick="moveApp(event,'${appId}',-1)">▲</button>`+
         `<button class="move-btn" onclick="moveApp(event,'${appId}',1)">▼</button>`;
