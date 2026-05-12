@@ -67,15 +67,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .ni .nn{font-weight:700;display:block}
 .ni .nd{font-size:10px;color:var(--muted);display:block;margin-top:1px}
 
-/* MOVE BUTTONS — shown only in reorder mode */
-.ni .move-btns{display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);
-  gap:2px;flex-direction:column}
-.reorder-mode .ni .move-btns{display:flex}
-.reorder-mode .ni{padding-right:40px}
-.move-btn{background:#1a1a1a;border:1px solid var(--border);color:var(--muted);
-  font-size:10px;padding:2px 5px;border-radius:4px;cursor:pointer;line-height:1.2;
-  font-family:Georgia,serif;transition:all .1s}
-.move-btn:hover{background:#1a1400;color:var(--gold);border-color:var(--gold)}
+/* DRAG HANDLE — shown only in reorder mode */
+.ni .drag-handle{display:none;font-size:16px;color:var(--muted);padding:0 4px;cursor:grab;flex-shrink:0;user-select:none}
+.reorder-mode .ni .drag-handle{display:block}
+.reorder-mode .ni{cursor:grab;touch-action:none}
+.ni.dragging{opacity:.4;background:#1a1400}
+.ni.drag-over{border-top:2px solid var(--gold)}
 
 /* CONTENT */
 #content{flex:1;position:relative;overflow:hidden}
@@ -364,46 +361,127 @@ function toggleReorder(){
   const navItems = document.getElementById('navItems');
   const btn = document.getElementById('reorderBtn');
   if(reorderMode){
-    // Inject move buttons into every nav item
+    // Add drag handles to all nav items
     navItems.querySelectorAll('.ni[data-app]').forEach(ni=>{
-      if(ni.querySelector('.move-btns')) return; // already has them
-      const appId = ni.dataset.app;
-      const span = document.createElement('span');
-      span.className = 'move-btns';
-      span.style.display = 'flex';
-      span.innerHTML =
-        `<button class="move-btn" onclick="moveApp(event,'${appId}',-1)">▲</button>`+
-        `<button class="move-btn" onclick="moveApp(event,'${appId}',1)">▼</button>`;
-      ni.appendChild(span);
-      ni.style.paddingRight = '44px';
+      if(!ni.querySelector('.drag-handle')){
+        const h = document.createElement('span');
+        h.className = 'drag-handle';
+        h.textContent = '⠿';
+        ni.insertBefore(h, ni.firstChild);
+      }
     });
+    navItems.classList.add('reorder-mode');
+    initDragDrop();
     btn.querySelector('.nn').textContent = '✓ Fine riordino';
     btn.style.color = 'var(--gold)';
-    toast('Usa ▲▼ per spostare le app','ok',2000);
+    toast('Tieni premuto e trascina per riordinare','ok',2500);
   } else {
-    // Remove all move buttons
-    navItems.querySelectorAll('.move-btns').forEach(el=>el.remove());
-    navItems.querySelectorAll('.ni[data-app]').forEach(ni=>{ ni.style.paddingRight=''; });
+    navItems.querySelectorAll('.drag-handle').forEach(el=>el.remove());
+    navItems.classList.remove('reorder-mode');
+    destroyDragDrop();
     btn.querySelector('.nn').textContent = 'Riordina App';
     btn.style.color = '';
     saveNavOrder();
   }
 }
 
-function moveApp(event, appId, direction){
-  event.stopPropagation();
+let dragItem = null, dragStartY = 0, dragClone = null, dragOriginalNext = null;
+
+function initDragDrop(){
   const navItems = document.getElementById('navItems');
-  const buttons = Array.from(navItems.querySelectorAll('.ni[data-app]'));
-  const idx = buttons.findIndex(b => b.dataset.app === appId);
-  if(idx === -1) return;
-  const newIdx = idx + direction;
-  if(newIdx < 0 || newIdx >= buttons.length) return;
-  // Swap in DOM
-  if(direction === -1){
-    navItems.insertBefore(buttons[idx], buttons[newIdx]);
-  } else {
-    navItems.insertBefore(buttons[newIdx], buttons[idx]);
+  navItems.querySelectorAll('.ni[data-app]').forEach(ni=>{
+    ni.addEventListener('touchstart', onTouchStart, {passive:false});
+    ni.addEventListener('touchmove', onTouchMove, {passive:false});
+    ni.addEventListener('touchend', onTouchEnd);
+  });
+}
+
+function destroyDragDrop(){
+  const navItems = document.getElementById('navItems');
+  navItems.querySelectorAll('.ni[data-app]').forEach(ni=>{
+    ni.removeEventListener('touchstart', onTouchStart);
+    ni.removeEventListener('touchmove', onTouchMove);
+    ni.removeEventListener('touchend', onTouchEnd);
+    ni.classList.remove('dragging','drag-over');
+  });
+  if(dragClone){ dragClone.remove(); dragClone=null; }
+  dragItem=null;
+}
+
+function onTouchStart(e){
+  if(!reorderMode) return;
+  dragItem = e.currentTarget;
+  dragStartY = e.touches[0].clientY;
+  dragItem.classList.add('dragging');
+  // Clone for visual feedback
+  dragClone = dragItem.cloneNode(true);
+  dragClone.style.cssText = `position:fixed;left:0;width:${dragItem.offsetWidth}px;z-index:9999;
+    background:#1a1400;border:1px solid var(--gold);border-radius:6px;opacity:.9;
+    pointer-events:none;transition:none;color:var(--gold);padding:11px 14px;
+    font-family:Georgia,serif;font-size:13px;display:flex;align-items:center;gap:10px`;
+  dragClone.style.top = (dragItem.getBoundingClientRect().top) + 'px';
+  document.body.appendChild(dragClone);
+  e.preventDefault();
+}
+
+function onTouchMove(e){
+  if(!dragItem || !dragClone) return;
+  e.preventDefault();
+  const y = e.touches[0].clientY;
+  const dy = y - dragStartY;
+  const rect = dragItem.getBoundingClientRect();
+  dragClone.style.top = (rect.top + dy) + 'px';
+
+  // Find which item we're hovering over
+  const navItems = document.getElementById('navItems');
+  navItems.querySelectorAll('.ni[data-app]').forEach(ni=>{
+    ni.classList.remove('drag-over');
+    if(ni === dragItem) return;
+    const r = ni.getBoundingClientRect();
+    if(y > r.top && y < r.bottom){
+      ni.classList.add('drag-over');
+    }
+  });
+}
+
+function onTouchEnd(e){
+  if(!dragItem){ return; }
+  const y = e.changedTouches[0].clientY;
+  if(dragClone){ dragClone.remove(); dragClone=null; }
+  dragItem.classList.remove('dragging');
+
+  const navItems = document.getElementById('navItems');
+  let target = null;
+  navItems.querySelectorAll('.ni[data-app]').forEach(ni=>{
+    ni.classList.remove('drag-over');
+    if(ni === dragItem) return;
+    const r = ni.getBoundingClientRect();
+    if(y > r.top && y < r.bottom) target = ni;
+  });
+
+  if(target){
+    // Insert dragItem before or after target
+    const targetRect = target.getBoundingClientRect();
+    const midY = targetRect.top + targetRect.height/2;
+    if(y < midY){
+      navItems.insertBefore(dragItem, target);
+    } else {
+      target.after(dragItem);
+    }
   }
+  dragItem = null;
+}
+
+function addNavHandleIfReordering(ni){
+  if(!reorderMode) return;
+  if(!ni.querySelector('.drag-handle')){
+    const h = document.createElement('span');
+    h.className='drag-handle'; h.textContent='⠿';
+    ni.insertBefore(h, ni.firstChild);
+  }
+  ni.addEventListener('touchstart', onTouchStart, {passive:false});
+  ni.addEventListener('touchmove', onTouchMove, {passive:false});
+  ni.addEventListener('touchend', onTouchEnd);
 }
 
 function saveNavOrder(){
@@ -658,6 +736,7 @@ function addNavItem(appId, name, icon, desc){
   btn.innerHTML=`<span class="ic">${icon}</span><span><span class="nn">${name}</span><span class="nd">${desc||''}</span></span>`;
   btn.onclick=()=>{ if(!reorderMode) switchApp(appId, icon+' '+name); };
   document.getElementById('navItems').appendChild(btn);
+  addNavHandleIfReordering(btn);
 }
 
 // ── Delete app ──
